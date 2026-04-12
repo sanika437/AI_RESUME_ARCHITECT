@@ -83,9 +83,11 @@ Puppeteer
 Stripe
 
 🔧 Tools
+
 Git & GitHub (version control & collaboration)
 
 🧩 Core Modules
+
 Resume Builder UI
 JD Analysis Agent
 Resume Rewriting Engine
@@ -94,6 +96,7 @@ PDF Rendering Service
 Subscription Management System
 
 👨‍💻 Team Workflow
+
 Git-based collaboration using branches
 Feature-based development
 Pull request-based merging
