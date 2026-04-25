@@ -1,14 +1,17 @@
 const express = require("express");
-const cors = require("cors");
-
 const app = express();
-app.use(cors());
+const pdfRoutes = require("./routes/pdfRoutes");
+
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Backend running 🚀");
-});
+const aiRoutes = require("./routes/aiRoutes");
+
+app.use("/api/ai", aiRoutes);
+app.use("/api/pdf", pdfRoutes);
 
 app.listen(5000, () => {
   console.log("Server running on port 5000");
 });
+
+
+
