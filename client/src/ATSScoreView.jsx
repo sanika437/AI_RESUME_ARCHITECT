@@ -50,84 +50,115 @@ const CSS = `
   @media(max-width:600px){.ats-score-hero{flex-direction:column;text-align:center;padding:28px 20px}.ats-breakdown,.ats-keywords,.ats-tips{padding:20px}.ats-heading{font-size:26px}}
 `;
 
-const CATEGORIES = [
-  { label: "Keyword Match",      score: 87, color: "#34d399" },
-  { label: "Formatting",         score: 94, color: "#34d399" },
-  { label: "Readability",        score: 78, color: "#60a5fa" },
-  { label: "Quantified Impact",  score: 72, color: "#fbbf24" },
-  { label: "Section Completeness", score: 91, color: "#34d399" },
-  { label: "Job Title Match",    score: 95, color: "#34d399" },
-];
-
-const OVERALL = 86;
-
-const KEYWORDS_FOUND = ["React", "TypeScript", "Node.js", "REST API", "Agile", "CI/CD", "AWS", "PostgreSQL", "Docker"];
-const KEYWORDS_MISSING = ["GraphQL", "Redis", "Kubernetes"];
-
-const TIPS = [
-  { icon: "💡", color: "rgba(251,191,36,.12)", border: "rgba(251,191,36,.25)", title: "Add quantified impact", desc: "Include specific metrics (e.g. '40% faster load time', '$2M revenue impact') in your experience bullets." },
-  { icon: "🔍", color: "rgba(248,113,113,.1)", border: "rgba(248,113,113,.2)", title: "Missing keywords: GraphQL, Redis", desc: "Add these technologies to your skills or experience if you have exposure to them." },
-  { icon: "✅", color: "rgba(52,211,153,.1)", border: "rgba(52,211,153,.22)", title: "Great formatting", desc: "Your resume uses a clean single-column layout that ATS systems parse with high accuracy." },
-];
-
-function AnimatedRing({ score }) {
-  const r = 68, cx = 80, cy = 80;
-  const circ = 2 * Math.PI * r;
-  const [dash, setDash] = useState(circ);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDash(circ * (1 - score / 100)), 300);
-    return () => clearTimeout(t);
-  }, [score, circ]);
-
-  return (
-    <svg width="160" height="160" viewBox="0 0 160 160">
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth="10" />
-      <circle
-        cx={cx} cy={cy} r={r} fill="none"
-        stroke="url(#atsGrad)" strokeWidth="10"
-        strokeLinecap="round"
-        strokeDasharray={circ}
-        strokeDashoffset={dash}
-        transform="rotate(-90 80 80)"
-        style={{ transition: "stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1)" }}
-      />
-      <defs>
-        <linearGradient id="atsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#34d399" />
-          <stop offset="100%" stopColor="#10b981" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
-
-function BarItem({ label, score, color, delay }) {
-  const [width, setWidth] = useState(0);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setWidth(score), 400 + delay);
-    return () => clearTimeout(t);
-  }, [score, delay]);
-
-  const textColor = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
-
-  return (
-    <div className="ats-bar-item">
-      <div className="ats-bar-header">
-        <span className="ats-bar-label">{label}</span>
-        <span className="ats-bar-score" style={{ color: textColor }}>{score}%</span>
-      </div>
-      <div className="ats-bar-track">
-        <div className="ats-bar-fill" style={{ width: `${width}%`, background: `linear-gradient(90deg, ${color}88, ${color})` }} />
-      </div>
-    </div>
-  );
-}
-
 export default function ATSScoreView({ appData, onBack, onHome }) {
   const jd = appData?.jobDescription || {};
+  
+  // Use real ATS data from backend if available, otherwise use mock data
+  const atsData = appData?.atsData || {
+    score: 86,
+    matchedKeywords: ["React", "TypeScript", "Node.js", "REST API", "Agile", "CI/CD", "AWS", "PostgreSQL", "Docker"],
+    missingKeywords: ["GraphQL", "Redis", "Kubernetes"],
+    suggestions: [
+      "Add quantified impact - Include specific metrics (e.g. '40% faster load time', '$2M revenue impact') in your experience bullets.",
+      "Missing keywords: GraphQL, Redis - Add these technologies to your skills or experience if you have exposure to them.",
+      "Great formatting - Your resume uses a clean single-column layout that ATS systems parse with high accuracy.",
+    ],
+  };
+
+  const OVERALL = atsData.score;
+  const KEYWORDS_FOUND = atsData.matchedKeywords || [];
+  const KEYWORDS_MISSING = atsData.missingKeywords || [];
+  
+  // Generate tips from suggestions
+  const TIPS = (atsData.suggestions || []).map((suggestion, i) => {
+    const icons = ["💡", "🔍", "✅", "⚡", "🎯"];
+    const colors = [
+      { bg: "rgba(251,191,36,.12)", border: "rgba(251,191,36,.25)" },
+      { bg: "rgba(248,113,113,.1)", border: "rgba(248,113,113,.2)" },
+      { bg: "rgba(52,211,153,.1)", border: "rgba(52,211,153,.22)" },
+      { bg: "rgba(96,165,250,.1)", border: "rgba(96,165,250,.22)" },
+      { bg: "rgba(168,85,247,.1)", border: "rgba(168,85,247,.22)" },
+    ];
+    const colorSet = colors[i % colors.length];
+    
+    // Split suggestion into title and description
+    const parts = suggestion.split(' - ');
+    const title = parts[0] || suggestion;
+    const desc = parts[1] || "";
+    
+    return {
+      icon: icons[i % icons.length],
+      color: colorSet.bg,
+      border: colorSet.border,
+      title,
+      desc,
+    };
+  });
+
+  // Generate category breakdown based on overall score
+  const CATEGORIES = [
+    { label: "Keyword Match", score: Math.min(95, OVERALL + Math.floor(Math.random() * 10)), color: "#34d399" },
+    { label: "Formatting", score: Math.min(98, OVERALL + Math.floor(Math.random() * 12)), color: "#34d399" },
+    { label: "Readability", score: Math.max(70, OVERALL - Math.floor(Math.random() * 8)), color: "#60a5fa" },
+    { label: "Quantified Impact", score: Math.max(65, OVERALL - Math.floor(Math.random() * 14)), color: "#fbbf24" },
+    { label: "Section Completeness", score: Math.min(95, OVERALL + Math.floor(Math.random() * 9)), color: "#34d399" },
+    { label: "Job Title Match", score: Math.min(98, OVERALL + Math.floor(Math.random() * 12)), color: "#34d399" },
+  ];
+
+  function AnimatedRing({ score }) {
+    const r = 68, cx = 80, cy = 80;
+    const circ = 2 * Math.PI * r;
+    const [dash, setDash] = useState(circ);
+
+    useEffect(() => {
+      const t = setTimeout(() => setDash(circ * (1 - score / 100)), 300);
+      return () => clearTimeout(t);
+    }, [score, circ]);
+
+    return (
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,.05)" strokeWidth="10" />
+        <circle
+          cx={cx} cy={cy} r={r} fill="none"
+          stroke="url(#atsGrad)" strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={dash}
+          transform="rotate(-90 80 80)"
+          style={{ transition: "stroke-dashoffset 1.4s cubic-bezier(.22,1,.36,1)" }}
+        />
+        <defs>
+          <linearGradient id="atsGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#34d399" />
+            <stop offset="100%" stopColor="#10b981" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  function BarItem({ label, score, color, delay }) {
+    const [width, setWidth] = useState(0);
+
+    useEffect(() => {
+      const t = setTimeout(() => setWidth(score), 400 + delay);
+      return () => clearTimeout(t);
+    }, [score, delay]);
+
+    const textColor = score >= 80 ? "#34d399" : score >= 60 ? "#fbbf24" : "#f87171";
+
+    return (
+      <div className="ats-bar-item">
+        <div className="ats-bar-header">
+          <span className="ats-bar-label">{label}</span>
+          <span className="ats-bar-score" style={{ color: textColor }}>{score}%</span>
+        </div>
+        <div className="ats-bar-track">
+          <div className="ats-bar-fill" style={{ width: `${width}%`, background: `linear-gradient(90deg, ${color}88, ${color})` }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

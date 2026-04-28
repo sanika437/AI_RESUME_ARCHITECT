@@ -139,7 +139,12 @@ const styles = `
     font-size: 13px; font-family: 'Inter', sans-serif;
     cursor: pointer; white-space: nowrap; transition: background 0.2s;
   }
-  .rb-skill-add-btn:hover { background: rgba(167,139,250,0.2); }
+  .rb-skill-add-btn:hover:not(:disabled) { background: rgba(167,139,250,0.2); }
+  .rb-skill-add-btn:disabled { 
+    opacity: 0.4; 
+    cursor: not-allowed; 
+    border-color: rgba(167,139,250,0.2);
+  }
 
   .rb-nav { display: flex; gap: 10px; margin-top: 1.5rem; }
 
@@ -391,22 +396,47 @@ function StepEducation({ data, onChange }) {
 
 function StepSkills({ skills, onChange }) {
   const [input, setInput] = useState("");
+  
   const add = () => {
     const t = input.trim();
-    if (t && !skills.includes(t)) onChange([...skills, t]);
-    setInput("");
+    if (t && !skills.includes(t)) {
+      onChange([...skills, t]);
+      setInput("");
+    }
   };
-  const remove = (s) => onChange(skills.filter((x) => x !== s));
+  
+  const remove = (s) => {
+    onChange(skills.filter((x) => x !== s));
+  };
+  
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      add();
+    }
+  };
+  
   return (
     <div className="rb-field-group">
       <div className="rb-field">
-        <label className="rb-label">Added Skills</label>
+        <label className="rb-label">Added Skills ({skills.length})</label>
         <div className="rb-skills-wrap">
-          {skills.length === 0 && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>No skills yet…</span>}
-          {skills.map((s) => (
-            <span key={s} className="rb-skill-tag">
+          {skills.length === 0 && (
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
+              No skills added yet. Add your first skill below!
+            </span>
+          )}
+          {skills.map((s, idx) => (
+            <span key={`${s}-${idx}`} className="rb-skill-tag">
               {s}
-              <button className="rb-skill-remove" onClick={() => remove(s)}>×</button>
+              <button 
+                type="button"
+                className="rb-skill-remove" 
+                onClick={() => remove(s)}
+                aria-label={`Remove ${s}`}
+              >
+                ×
+              </button>
             </span>
           ))}
         </div>
@@ -415,14 +445,26 @@ function StepSkills({ skills, onChange }) {
         <label className="rb-label">Add a Skill</label>
         <div className="rb-skill-input-row">
           <input
+            type="text"
             className="rb-input"
             placeholder="e.g. React, Figma, Python…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            onKeyDown={handleKeyDown}
+            autoFocus
           />
-          <button className="rb-skill-add-btn" onClick={add}>+ Add</button>
+          <button 
+            type="button"
+            className="rb-skill-add-btn" 
+            onClick={add}
+            disabled={!input.trim()}
+          >
+            + Add
+          </button>
         </div>
+        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
+          Press Enter or click Add button
+        </span>
       </div>
     </div>
   );

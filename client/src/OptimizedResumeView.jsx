@@ -71,70 +71,92 @@ const CSS = `
   .orv-cl-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;display:inline-block;animation:orvSpin .75s linear infinite}
 `;
 
-function generateOptimizedContent(appData) {
+function generateOptimizedContent(appData, optimizedData) {
   const jd = appData.jobDescription || {};
+
+  // ✅ If backend returned a structured optimizedResume object, use it directly
+  if (optimizedData && typeof optimizedData === 'object' && optimizedData.name) {
+    return {
+      name: optimizedData.name || "Candidate Name",
+      title: optimizedData.title || jd.role || "Software Engineer",
+      email: optimizedData.email || "",
+      phone: optimizedData.phone || "",
+      location: optimizedData.location || "",
+      linkedin: optimizedData.linkedin || "",
+      summary: optimizedData.summary || "",
+      experience: Array.isArray(optimizedData.experience) ? optimizedData.experience : [],
+      skills: Array.isArray(optimizedData.skills) ? optimizedData.skills : [],
+      education: Array.isArray(optimizedData.education)
+        ? optimizedData.education[0] || { degree: "", college: "", year: "" }
+        : (optimizedData.education || { degree: "", college: "", year: "" }),
+    };
+  }
+
+  // Fallback: build from appData when API is unavailable
   const rd = (appData.resumeData && appData.resumeData.contacts) ? appData.resumeData.contacts : {};
   const firstName = rd.firstName || "";
   const lastName = rd.lastName || "";
-  const name = (firstName + " " + lastName).trim() || "Alex Johnson";
-  const title = rd.jobTitle || jd.role || "Software Engineer";
-  const descSnippet = jd.jobDesc ? jd.jobDesc.slice(0, 80) + "..." : "building scalable, high-quality software";
+  const name = (firstName + " " + lastName).trim() || "";
+  const title = rd.jobTitle || jd.role || "Software Developer";
   return {
-    name,
+    name: name || "(Your name will appear here when AI processes your resume)",
     title,
-    email: rd.email || "alex.johnson@email.com",
-    phone: rd.phone || "+1 (555) 234-5678",
-    location: "San Francisco, CA",
-    linkedin: "linkedin.com/in/alexjohnson",
-    summary: "Results-driven " + title + " with " + (jd.experience || "3+") + " years of experience delivering impactful solutions. Proven track record of collaborating cross-functionally to drive product goals and exceed KPIs. Adept at " + descSnippet + " Passionate about innovation and continuous improvement.",
-    experience: [
-      {
-        role: title,
-        company: "TechCorp Inc.",
-        date: "2022 - Present",
-        bullets: [
-          "Led end-to-end development of core platform features, reducing load time by 40%",
-          "Collaborated with PM and design team to ship 12+ features aligned with job requirements",
-          "Mentored 3 junior engineers and introduced code-review practices that cut bugs by 30%",
-        ],
-      },
-      {
-        role: "Associate " + title,
-        company: "StartupXYZ",
-        date: "2020 - 2022",
-        bullets: [
-          "Built RESTful APIs consumed by 50K+ daily active users",
-          "Improved CI/CD pipeline reducing deployment time from 45 min to 8 min",
-        ],
-      },
-    ],
-    skills: ["React", "TypeScript", "Node.js", "Python", "PostgreSQL", "AWS", "Docker", "Git", "Agile/Scrum"],
-    education: { degree: "B.S. Computer Science", college: "UC Berkeley", year: "2020" },
+    email: rd.email || "",
+    phone: rd.phone || "",
+    location: "",
+    linkedin: "",
+    summary: "Motivated " + title + " with hands-on experience in backend development. Skilled at building scalable REST APIs and working with databases. Seeking to contribute to a " + (jd.role || "software engineering") + " role.",
+    experience: [],
+    skills: ["JavaScript", "Node.js", "REST APIs", "MySQL", "Git"],
+    education: { degree: rd.degree || "B.Tech Computer Science", college: rd.college || "", year: rd.year || "" },
   };
 }
 
-function generateCoverLetter(appData, resume) {
+function generateCoverLetterLocal(appData, resume) {
+  const jd = appData.jobDescription || {};
+  const name = (resume && resume.name && resume.name !== "Your Name") ? resume.name : "Candidate";
+  const email = (resume && resume.email && !resume.email.includes("example.com")) ? resume.email : "";
+  const phone = (resume && resume.phone && !resume.phone.includes("00000")) ? resume.phone : "";
+  const role = jd.role || "the position";
+  // Fix: don't use jd.experience as "years" — it could be "fresher", "2 years", etc.
+  const rawExp = jd.experience || "";
+  const expPhrase = rawExp.toLowerCase() === "fresher" || rawExp === ""
+    ? "a strong foundation in"
+    : "experience in";
+  const skillsList = (resume && resume.skills && resume.skills.length > 0)
+    ? resume.skills.slice(0, 4).join(", ")
+    : "backend development and software engineering";
+  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  return {
+    name,
+    email: email || "—",
+    phone: phone || "—",
+    date: today,
+    paragraphs: [
+      "Dear Hiring Manager,",
+      "I am writing to express my interest in the " + role + " position. I bring " + expPhrase + " " + skillsList + ", and I am eager to contribute to your team with a strong work ethic and a passion for building reliable, scalable software.",
+      "My background includes hands-on work with the technologies relevant to this role. I enjoy solving complex problems, writing clean and maintainable code, and collaborating effectively with team members to deliver quality results on time.",
+      "I am particularly drawn to this opportunity because it aligns well with my technical skills and my goal of growing as a backend developer. I am confident that I can make meaningful contributions from day one.",
+      "Thank you for considering my application. I would welcome the chance to discuss how my skills and enthusiasm align with your team's needs.",
+      "Sincerely,\n" + name,
+    ],
+  };
+}
+
+function parseCoverLetter(text, appData, resume) {
+  const lines = text.split('\n').filter(l => l.trim());
   const jd = appData.jobDescription || {};
   const name = (resume && resume.name) ? resume.name : "Alex Johnson";
   const email = (resume && resume.email) ? resume.email : "alex.johnson@email.com";
   const phone = (resume && resume.phone) ? resume.phone : "+1 (555) 234-5678";
-  const role = jd.role || "the position";
-  const exp = jd.experience || "3+";
-  const skillsList = (resume && resume.skills) ? resume.skills.slice(0, 4).join(", ") : "software development";
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  
   return {
     name,
     email,
     phone,
     date: today,
-    paragraphs: [
-      "Dear Hiring Manager,",
-      "I am excited to apply for the " + role + " position. With " + exp + " years of hands-on experience building impactful solutions, I am confident that my background aligns strongly with what your team is looking for.",
-      "Throughout my career I have developed deep expertise in " + skillsList + ". I have consistently delivered projects on time, collaborated with cross-functional teams, and driven measurable outcomes — including reducing load times by 40% and mentoring junior engineers to improve code quality across the board.",
-      "What excites me most about this role is the opportunity to contribute to a team that values innovation and continuous improvement. I thrive in fast-paced environments and enjoy translating complex requirements into elegant, maintainable solutions.",
-      "I would welcome the opportunity to discuss how my experience and passion for this work can contribute to your team's success. Thank you for your time and consideration — I look forward to hearing from you.",
-      "Sincerely,\n" + name,
-    ],
+    paragraphs: lines,
   };
 }
 
@@ -143,22 +165,200 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
   const [resume, setResume] = useState(null);
   const [clLoading, setClLoading] = useState(false);
   const [coverLetter, setCoverLetter] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const t = setTimeout(function() {
-      setResume(generateOptimizedContent(appData));
-      setLoading(false);
-    }, 2200);
-    return function() { clearTimeout(t); };
+    const generateResume = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // ✅ FIX 1: Actually extract text from the uploaded PDF/DOCX file
+        let resumeText = "";
+        if (appData.method === "upload" && appData.uploadedFile) {
+          try {
+            const formData = new FormData();
+            formData.append("resume", appData.uploadedFile);
+            const extractRes = await fetch("/api/pdf/extract-text", {
+              method: "POST",
+              body: formData,
+            });
+            const extractData = await extractRes.json();
+            if (extractData.success && extractData.text) {
+              resumeText = extractData.text;
+            } else {
+              throw new Error(extractData.error || "Text extraction failed");
+            }
+          } catch (extractErr) {
+            console.error("PDF extraction error:", extractErr);
+            setError("⚠️ Could not extract text from your PDF. Using form data instead.");
+            // Fallback to form data if available
+            if (appData.resumeData) {
+              const rd = appData.resumeData.contacts || {};
+              resumeText = `${rd.firstName || ""} ${rd.lastName || ""}\n${rd.email || ""}\n${rd.phone || ""}\n\n${appData.resumeData.summary || ""}`;
+            }
+          }
+        } else if (appData.resumeData) {
+          // Built from form — construct structured text
+          const rd = appData.resumeData.contacts || {};
+          resumeText = `${rd.firstName || ""} ${rd.lastName || ""}\n`;
+          resumeText += `Email: ${rd.email || ""}\nPhone: ${rd.phone || ""}\n\n`;
+          resumeText += `SUMMARY\n${appData.resumeData.summary || ""}\n\n`;
+          if (appData.resumeData.skills) {
+            resumeText += `SKILLS\n${appData.resumeData.skills}\n\n`;
+          }
+          if (appData.resumeData.experience) {
+            resumeText += `EXPERIENCE\n${appData.resumeData.experience}\n\n`;
+          }
+          if (appData.resumeData.education) {
+            resumeText += `EDUCATION\n${appData.resumeData.education}\n`;
+          }
+        }
+
+        if (!resumeText.trim()) {
+          resumeText = "Entry-level software developer seeking backend developer position. Familiar with programming fundamentals, data structures, and REST APIs.";
+        }
+
+        const jd = appData.jobDescription || {};
+        const jobDescText = `Role: ${jd.role}\nExperience: ${jd.experience}\n${jd.jobDesc}`;
+
+        // ✅ FIX 2: Call backend API with real resume text
+        const response = await fetch("/api/ai/full-process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resume: resumeText,
+            jd: jobDescText,
+            generateCover: false,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to optimize resume");
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          // ✅ FIX 3: Store structured optimizedResume object
+          appData.optimizedResume = data.data.optimizedResume;
+          appData.optimizedResumeText = typeof data.data.optimizedResume === "object"
+            ? JSON.stringify(data.data.optimizedResume)
+            : data.data.optimizedResume;
+          appData.atsData = data.data.ats;
+          if (data.isDemoMode) {
+            setError("⚠️ AI service is busy. Showing a structured template — please re-submit in a moment for AI-optimized content.");
+          }
+          setResume(generateOptimizedContent(appData, data.data.optimizedResume));
+        } else {
+          throw new Error(data.error || "Failed to optimize resume");
+        }
+      } catch (err) {
+        console.error("Error generating resume:", err);
+        if (err.message && (err.message.includes("quota") || err.message.includes("RESOURCE_EXHAUSTED"))) {
+          setError("⚠️ API quota exceeded. Please wait 1 minute and try again.");
+        } else {
+          setError("⚠️ " + (err.message || "Could not connect to AI service. Showing template."));
+        }
+        setResume(generateOptimizedContent(appData));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    generateResume();
   }, [appData]);
 
-  const handleGenerateCL = function() {
-    setClLoading(true);
-    setCoverLetter(null);
-    setTimeout(function() {
-      setCoverLetter(generateCoverLetter(appData, resume));
+  // SSE streaming state for cover letter typing effect (Project 2 requirement)
+  const [streamedText, setStreamedText] = useState("");
+
+  const handleGenerateCL = async function() {
+    try {
+      setClLoading(true);
+      setCoverLetter(null);
+      setStreamedText("");
+
+      const jd = appData.jobDescription || {};
+      const jobDescText = `Role: ${jd.role}\nExperience: ${jd.experience}\n${jd.jobDesc}`;
+
+      // Build resume text from the structured resume object
+      let resumeForCL = "";
+      if (resume) {
+        resumeForCL = `${resume.name}\nEmail: ${resume.email}\nPhone: ${resume.phone}\nTitle: ${resume.title}\n\nSummary: ${resume.summary}\n\nSkills: ${resume.skills.join(", ")}`;
+        if (resume.experience && resume.experience.length > 0) {
+          resumeForCL += "\n\nExperience:\n" + resume.experience.map(e =>
+            `${e.role} at ${e.company} (${e.date})\n${(e.bullets || []).map(b => "- " + b).join("\n")}`
+          ).join("\n\n");
+        }
+      } else {
+        resumeForCL = "Software developer seeking " + (jd.role || "software engineering") + " role.";
+      }
+
+      // ✅ Use SSE streaming endpoint for "typing effect" as required by project spec
+      const response = await fetch("/api/ai/cover-letter-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume: resumeForCL, jd: jobDescText }),
+      });
+
+      if (!response.ok) throw new Error("Stream request failed");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      // Show the cover letter card immediately while streaming
+      setCoverLetter({ streaming: true, name: resume?.name || "", email: resume?.email || "", phone: resume?.phone || "", date: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), paragraphs: [] });
       setClLoading(false);
-    }, 1800);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const lines = decoder.decode(value).split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const payload = line.slice(6).trim();
+            if (payload === "[DONE]") break;
+            try {
+              const json = JSON.parse(payload);
+              if (json.text) {
+                fullText += json.text;
+                setStreamedText(fullText);
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      // Convert streamed plain text to paragraphs
+      const paragraphs = fullText.split("\n").filter(l => l.trim());
+      setCoverLetter(parseCoverLetter(fullText, appData, resume));
+      setStreamedText("");
+
+    } catch (err) {
+      console.error("Cover letter error:", err);
+      setClLoading(false);
+      setStreamedText("");
+      // Fallback to non-streaming endpoint
+      try {
+        const jd = appData.jobDescription || {};
+        const res2 = await fetch("/api/ai/cover-letter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resume: resume ? `${resume.name}\n${resume.summary}\nSkills: ${resume.skills.join(", ")}` : "Developer",
+            jd: `Role: ${jd.role}\n${jd.jobDesc}`,
+          }),
+        });
+        const data = await res2.json();
+        if (data.success && data.data.coverLetter?.length > 50) {
+          setCoverLetter(parseCoverLetter(data.data.coverLetter, appData, resume));
+          return;
+        }
+      } catch (_) {}
+      setCoverLetter(generateCoverLetterLocal(appData, resume));
+    }
   };
 
   const handleDownloadCL = function() {
@@ -206,6 +406,27 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
 
           <h1 className="orv-heading">Your Optimized Resume</h1>
           <p className="orv-sub">Tailored to the job description using AI. Download or check your ATS score below.</p>
+
+          {error && (
+            <div style={{
+              background: "rgba(251,191,36,.1)",
+              border: "1px solid rgba(251,191,36,.3)",
+              borderRadius: "12px",
+              padding: "12px 16px",
+              marginBottom: "20px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              animation: "orvFadeUp .5s both"
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span style={{fontSize: "13px", color: "#fbbf24", fontWeight: 500}}>{error}</span>
+            </div>
+          )}
 
           {!loading && (
             <div className="orv-actions">
@@ -311,7 +532,7 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
                 </button>
               </div>
 
-              {(clLoading || coverLetter) && (
+              {(clLoading || coverLetter || streamedText) && (
                 <div className="orv-cover-card">
                   <div className="orv-cover-toolbar">
                     <div className="orv-toolbar-dots">
@@ -327,6 +548,16 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
                       <div className="orv-cover-spinner"/>
                       <p className="orv-cover-loading-text">AI is writing your cover letter...</p>
                     </div>
+                  ) : streamedText ? (
+                    /* ✅ SSE Streaming "typing effect" as required by project spec */
+                    <div className="orv-cover-body">
+                      {coverLetter && <div className="cl-name">{coverLetter.name}</div>}
+                      {coverLetter && <div className="cl-contact">{coverLetter.email} | {coverLetter.phone} | {coverLetter.date}</div>}
+                      <p style={{whiteSpace:"pre-wrap", fontFamily:"'Crimson Pro',Georgia,serif", fontSize:13, color:"#374151", lineHeight:1.85}}>
+                        {streamedText}
+                        <span style={{display:"inline-block", width:2, height:"1em", background:"#6366f1", marginLeft:2, animation:"orvBlink 0.8s ease-in-out infinite", verticalAlign:"text-bottom"}}/>
+                      </p>
+                    </div>
                   ) : coverLetter && (
                     <div className="orv-cover-body">
                       <div className="cl-name">{coverLetter.name}</div>
@@ -339,7 +570,7 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
                 </div>
               )}
 
-              {coverLetter && !clLoading && (
+              {coverLetter && !clLoading && !streamedText && (
                 <div className="orv-dl-bar">
                   <button className="orv-btn-dl-cl" onClick={handleDownloadCL}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>

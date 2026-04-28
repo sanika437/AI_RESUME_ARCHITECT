@@ -3,26 +3,29 @@ const router = express.Router();
 
 const {
   analyzeJDController,
-  optimizeResumeController,
   atsScoreController,
   coverLetterController,
-  fullProcessController, // ✅ added
+  coverLetterStreamController,
+  rewriteBulletController,
+  fullProcessController,
 } = require("../controllers/aiController");
 
-// 🔹 Analyze JD
-router.post("/analyze-jd", analyzeJDController);
-
-// 🔹 Optimize Resume
-router.post("/optimize-resume", optimizeResumeController);
-
-// 🔹 ATS Score
-router.post("/ats-score", atsScoreController);
-
-// 🔹 Cover Letter
-router.post("/cover-letter", coverLetterController);
-
-// 🔥 Full Process Pipeline
+// Core pipeline — used by OptimizedResumeView
 router.post("/full-process", fullProcessController);
 
-// ✅ Export
+// JD Analysis Agent
+router.post("/analyze-jd", analyzeJDController);
+
+// ATS Score
+router.post("/ats-score", atsScoreController);
+
+// Cover Letter (non-streaming)
+router.post("/cover-letter", coverLetterController);
+
+// Cover Letter SSE Streaming (typing effect)
+router.post("/cover-letter-stream", coverLetterStreamController);
+
+// AI Magic Button — rewrite bullet with keyword
+router.post("/rewrite-bullet", rewriteBulletController);
+
 module.exports = router;

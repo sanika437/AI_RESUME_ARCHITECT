@@ -1,252 +1,117 @@
 require("dotenv").config();
 
-// 🔹 Check API Key
 if (!process.env.GEMINI_API_KEY) {
-  throw new Error("Missing GEMINI_API_KEY");
+  throw new Error("Missing GEMINI_API_KEY in .env file");
+}
+
+// Use gemini-2.0-flash (gemini-1.5-flash is deprecated)
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+async function callGemini(prompt, maxTokens = 2048) {
+  const response = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens },
+    }),
+  });
+  const data = await response.json();
+  if (!data.candidates) {
+    console.error("Gemini API error:", JSON.stringify(data));
+    throw new Error(`Gemini API error: ${data.error?.message || "Unknown error"}`);
+  }
+  return data.candidates[0].content.parts[0].text || "";
 }
 
 // 🔹 Analyze JD
 async function analyzeJD(jdText) {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Extract only skills as a JSON array. No explanation.
-
-Job Description:
-${jdText}`,
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!data.candidates) {
-      console.error("analyzeJD error:", data);
-      return [];
-    }
-
-    let text = data.candidates[0].content.parts[0].text || "";
-    text = text.replace(/```json|```/g, "").trim();
-
-    return JSON.parse(text);
+    const text = await callGemini(`Extract required skills as a JSON array. Return ONLY the JSON array, no other text.\n\nJob Description:\n${jdText}`);
+    const clean = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    return JSON.parse(clean);
   } catch (error) {
-    console.error("analyzeJD crash:", error);
+    console.error("analyzeJD error:", error.message);
     return [];
   }
 }
 
-// 🔹 Optimize Resume (FIXED WITH FALLBACK)
+// 🔹 Optimize Resume
 async function optimizeResume(resumeText, jdText, skills = []) {
   try {
     const skillsText = Array.isArray(skills) ? skills.join(", ") : skills;
+    const text = await callGemini(`Rewrite and optimize the following resume for ATS.
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Rewrite and optimize the following resume.
-
-Required Skills:
-${skillsText}
+Required Skills: ${skillsText}
 
 Rules:
-- Plain text only
-- No markdown or placeholders
-- ATS-friendly
-
-Structure:
-
-SUMMARY
-- 2–3 lines
-
-SKILLS
-- Use "-" for each skill
-
-PROJECTS / EXPERIENCE
-- 2–4 bullet points
+- Plain text only, no markdown
+- ATS-friendly structure
+- Sections: SUMMARY, SKILLS, EXPERIENCE/PROJECTS, EDUCATION
 
 Resume:
 ${resumeText}
 
 Job Description:
-${jdText}`,
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    // ✅ IMPORTANT FIX
-    if (!data.candidates) {
-      console.error("optimizeResume error:", data);
-      return resumeText; // fallback instead of breaking pipeline
-    }
-
-    let text = data.candidates[0].content.parts[0].text || "";
-
-    return text
-      .replace(/```json|```/g, "")
-      .replace(/\*\*/g, "")
-      .replace(/\[.*?\]/g, "")
-      .trim();
+${jdText}`);
+    return text.replace(/```json|```/g, "").replace(/\*\*/g, "").trim();
   } catch (error) {
-    console.error("optimizeResume crash:", error);
-    return resumeText; // fallback
+    console.error("optimizeResume error:", error.message);
+    return resumeText;
   }
 }
 
-// 🔹 ATS Score (STRICT + SAFE)
+// 🔹 ATS Score
 async function calculateATS(resumeText, jdText) {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Analyze the resume against the job description and return ATS score.
+    const text = await callGemini(`Analyze the resume against the job description and return ATS score as JSON only.
 
-Rules:
-- Return ONLY JSON
-- Be STRICT and realistic
-- Maximum score should rarely exceed 90
-- ALWAYS include at least 1 suggestion or missing keyword
-- Consider:
-  - missing skills
-  - weak descriptions
-  - lack of quantification
-
-Format:
+Format (return ONLY this JSON, no other text):
 {
-  "score": number,
-  "matchedKeywords": [],
-  "missingKeywords": [],
-  "suggestions": []
+  "score": number between 50-90,
+  "matchedKeywords": ["keyword1", "keyword2"],
+  "missingKeywords": ["missing1", "missing2"],
+  "suggestions": ["suggestion1", "suggestion2", "suggestion3"]
 }
 
 Resume:
 ${resumeText}
 
 Job Description:
-${jdText}`,
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!data.candidates) {
-      console.error("ATS error:", data);
-      return {
-        score: 0,
-        matchedKeywords: [],
-        missingKeywords: [],
-        suggestions: ["ATS analysis failed. Please try again."],
-      };
-    }
-
-    let text = data.candidates[0].content.parts[0].text || "";
-    text = text.replace(/```json|```/g, "").trim();
-
-    return JSON.parse(text);
+${jdText}`);
+    const clean = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+    const jsonStart = clean.indexOf("{");
+    const jsonEnd = clean.lastIndexOf("}");
+    return JSON.parse(clean.substring(jsonStart, jsonEnd + 1));
   } catch (error) {
-    console.error("ATS crash:", error);
-    return {
-      score: 0,
-      matchedKeywords: [],
-      missingKeywords: [],
-      suggestions: ["ATS failed due to error."],
-    };
+    console.error("calculateATS error:", error.message);
+    return { score: 0, matchedKeywords: [], missingKeywords: [], suggestions: ["ATS analysis failed. Please try again."] };
   }
 }
 
-// 🔹 Cover Letter
+// 🔹 Generate Cover Letter
 async function generateCoverLetter(resumeText, jdText) {
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Write a professional cover letter.
+    const text = await callGemini(`Write a professional cover letter based on the resume and job description.
 
-- Plain text only
-- No placeholders
+Rules:
+- Plain text only, no markdown, no placeholders like [Company Name]
 - Start with: Dear Hiring Manager,
-- End with:
-Sincerely,
+- 3-4 paragraphs
+- End with: Sincerely,\n[candidate name from resume]
+- Be specific about skills from the resume
 
 Resume:
 ${resumeText}
 
 Job Description:
-${jdText}`,
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!data.candidates) {
-      console.error("Cover letter error:", data);
-      return "Unable to generate cover letter. Please try again.";
-    }
-
-    let text = data.candidates[0].content.parts[0].text || "";
-
-    return text
-      .replace(/```json|```/g, "")
-      .replace(/\*\*/g, "")
-      .replace(/\[.*?\]/g, "")
-      .trim();
+${jdText}`);
+    return text.replace(/```json|```/g, "").replace(/\*\*/g, "").trim();
   } catch (error) {
-    console.error("Cover crash:", error);
-    return "Cover letter generation failed.";
+    console.error("generateCoverLetter error:", error.message);
+    return "Unable to generate cover letter. Please try again.";
   }
 }
 
-module.exports = {
-  analyzeJD,
-  optimizeResume,
-  calculateATS,
-  generateCoverLetter,
-};
+module.exports = { analyzeJD, optimizeResume, calculateATS, generateCoverLetter };

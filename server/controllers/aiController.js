@@ -1,166 +1,140 @@
 const {
   analyzeJD,
-  optimizeResume,
+  fullProcess,
   calculateATS,
   generateCoverLetter,
-} = require("../services/geminiService");
+  generateCoverLetterStream,
+  rewriteBullet,
+} = require("../services/aiService");
 
-// 🔹 Analyze JD Controller
+// ─── Analyze JD ───────────────────────────────
 const analyzeJDController = async (req, res) => {
   try {
     const { jd } = req.body;
-
-    if (!jd) {
-      return res.status(400).json({
-        success: false,
-        error: "Job Description is required",
-      });
-    }
-
+    if (!jd) return res.status(400).json({ success: false, error: "Job Description is required" });
     const result = await analyzeJD(jd);
-
-    res.json({
-      success: true,
-      data: { skills: result },
-    });
+    res.json({ success: true, data: result });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// 🔹 Optimize Resume Controller
-const optimizeResumeController = async (req, res) => {
-  try {
-    const { resume, jd } = req.body;
-
-    if (!resume || !jd) {
-      return res.status(400).json({
-        success: false,
-        error: "Resume and JD required",
-      });
-    }
-
-    const result = await optimizeResume(resume, jd);
-
-    res.json({
-      success: true,
-      data: { optimizedResume: result },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-};
-
-// 🔹 ATS Score Controller
+// ─── ATS Score ────────────────────────────────
 const atsScoreController = async (req, res) => {
   try {
     const { resume, jd } = req.body;
-
-    if (!resume || !jd) {
-      return res.status(400).json({
-        success: false,
-        error: "Resume and JD required",
-      });
-    }
-
+    if (!resume || !jd) return res.status(400).json({ success: false, error: "Resume and JD required" });
     const result = await calculateATS(resume, jd);
-
-    res.json({
-      success: true,
-      data: { ats: result },
-    });
+    res.json({ success: true, data: { ats: result } });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// 🔹 Cover Letter Controller
+// ─── Cover Letter (non-streaming) ─────────────
 const coverLetterController = async (req, res) => {
   try {
     const { resume, jd } = req.body;
-
-    if (!resume || !jd) {
-      return res.status(400).json({
-        success: false,
-        error: "Resume and JD required",
-      });
-    }
-
+    if (!resume || !jd) return res.status(400).json({ success: false, error: "Resume and JD required" });
     const result = await generateCoverLetter(resume, jd);
-
-    res.json({
-      success: true,
-      data: { coverLetter: result },
-    });
+    res.json({ success: true, data: { coverLetter: result } });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// 🔥 FULL PIPELINE CONTROLLER
+// ─── Cover Letter SSE Stream ──────────────────
+// Project spec: SSE streaming for "typing effect"
+const coverLetterStreamController = async (req, res) => {
+  try {
+    const { resume, jd } = req.body;
+    if (!resume || !jd) {
+      return res.status(400).json({ success: false, error: "Resume and JD required" });
+    }
+    await generateCoverLetterStream(resume, jd, res);
+  } catch (error) {
+    console.error("CL stream error:", error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+};
+
+// ─── Rewrite Bullet (AI Magic Button) ─────────
+const rewriteBulletController = async (req, res) => {
+  try {
+    const { bullet, keyword, stream } = req.body;
+    if (!bullet) return res.status(400).json({ success: false, error: "Bullet text required" });
+
+    if (stream) {
+      await rewriteBullet(bullet, keyword || "", res);
+    } else {
+      const result = await rewriteBullet(bullet, keyword || "");
+      res.json({ success: true, data: { rewritten: result } });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─── Full Pipeline (Core endpoint) ────────────
 const fullProcessController = async (req, res) => {
   try {
-    const { resume, jd, generateCover = true } = req.body;
+    const { resume, jd, generateCover = false } = req.body;
 
     if (!resume || !jd) {
-      return res.status(400).json({
-        success: false,
-        error: "Resume and JD required",
-      });
+      return res.status(400).json({ success: false, error: "Resume and JD required" });
     }
 
-    console.log("Incoming Request:", req.body);
+    console.log(`[Groq Llama3] Processing: resume=${resume.length} chars`);
 
-    const extractedSkills = await analyzeJD(jd);
+    const result = await fullProcess(resume, jd);
 
-    const optimizedResume = await optimizeResume(
-      resume,
-      jd,
-      extractedSkills
-    );
-
-    const ats = await calculateATS(optimizedResume, jd);
-
+    // Optional cover letter
     let coverLetter = null;
     if (generateCover) {
-      coverLetter = await generateCoverLetter(optimizedResume, jd);
+      const resumeSnippet = result.optimizedResume
+        ? `${result.optimizedResume.name}\n${result.optimizedResume.summary}\nSkills: ${(result.optimizedResume.skills || []).join(", ")}`
+        : resume.substring(0, 800);
+      coverLetter = await generateCoverLetter(resumeSnippet, jd);
     }
 
     res.json({
       success: true,
       data: {
-        extractedSkills,
-        optimizedResume,
-        ats,
+        extractedSkills: result.extractedSkills || [],
+        optimizedResume: result.optimizedResume,
+        ats: result.ats,
         coverLetter,
       },
     });
   } catch (error) {
-    console.error("Pipeline Error:", error);
+    console.error("Pipeline error:", error.message);
 
-    res.status(500).json({
+    // Check for rate limit / quota errors
+    const isQuota = error.message?.toLowerCase().includes("quota") ||
+                    error.message?.toLowerCase().includes("resource_exhausted") ||
+                    error.message?.toLowerCase().includes("429");
+
+    res.status(isQuota ? 429 : 500).json({
       success: false,
-      error: error.message,
+      error: isQuota
+        ? "Gemini API quota exceeded. Please wait 1 minute and try again."
+        : error.message,
+      isQuotaError: isQuota,
     });
   }
 };
 
+// Legacy compat
+const optimizeResumeController = fullProcessController;
+
 module.exports = {
   analyzeJDController,
-  optimizeResumeController,
   atsScoreController,
   coverLetterController,
+  coverLetterStreamController,
+  rewriteBulletController,
+  optimizeResumeController,
   fullProcessController,
 };
