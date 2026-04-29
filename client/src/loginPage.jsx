@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -72,9 +72,11 @@ const CSS = `
   .ar-forgot{text-align:right;margin-top:-6px;margin-bottom:6px}
   .ar-forgot a{font-size:12px;color:rgba(139,92,246,.75);text-decoration:none;font-weight:500;transition:color .18s}
   .ar-forgot a:hover{color:#a78bfa}
+  .ar-error{color:#f87171;font-size:13px;margin-bottom:8px;text-align:center;animation:fadeUp .25s ease both}
   .ar-btn-primary{width:100%;padding:14px;background:linear-gradient(135deg,#7c3aed 0%,#4f46e5 60%,#4338ca 100%);border:none;border-radius:14px;font-family:'Epilogue',sans-serif;font-size:14px;font-weight:700;color:#fff;cursor:pointer;letter-spacing:.02em;transition:all .22s ease;box-shadow:0 4px 20px rgba(109,40,217,.45),0 0 0 1px rgba(167,139,250,.15) inset;margin-top:10px;position:relative;overflow:hidden;animation:fadeUp .5s .36s cubic-bezier(.22,1,.36,1) both}
-  .ar-btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(109,40,217,.55),0 0 0 1px rgba(167,139,250,.25) inset}
-  .ar-btn-primary:active{transform:translateY(0)}
+  .ar-btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 32px rgba(109,40,217,.55),0 0 0 1px rgba(167,139,250,.25) inset}
+  .ar-btn-primary:active:not(:disabled){transform:translateY(0)}
+  .ar-btn-primary:disabled{opacity:.6;cursor:not-allowed}
   .ar-switch{text-align:center;margin-top:20px;font-size:13px;color:rgba(100,116,139,.68);animation:fadeUp .5s .40s cubic-bezier(.22,1,.36,1) both}
   .ar-switch button{background:none;border:none;font-family:'Epilogue',sans-serif;font-size:13px;font-weight:600;color:#a78bfa;cursor:pointer;margin-left:5px;padding:0;transition:color .18s}
   .ar-switch button:hover{color:#c4b5fd}
@@ -92,13 +94,81 @@ export default function AuthPage({ onLogin }) {
   const [showPw, setShowPw] = useState(false);
   const [showCf, setShowCf] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", confirm: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Handle Google OAuth callback — reads token/email/error from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const email = params.get("email");
+    const err = params.get("error");
+
+    if (token && email) {
+      localStorage.setItem("token", token);
+      localStorage.setItem("userEmail", email);
+      // Clean the URL so params don't persist on refresh
+      window.history.replaceState({}, document.title, "/");
+      if (onLogin) onLogin({ token, email });
+    }
+
+    if (err) {
+      setError("Google sign-in failed. Please try again.");
+      window.history.replaceState({}, document.title, "/");
+    }
+  }, []);
 
   const isLogin = mode === "login";
   const strength = getStrength(form.password);
   const pwMatch = form.confirm && form.confirm === form.password;
   const change = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-  const switchMode = (m) => { setMode(m); setForm({ email: "", password: "", confirm: "" }); setShowPw(false); setShowCf(false); };
-  const handleSubmit = (e) => { e.preventDefault(); if (onLogin) onLogin(); };
+  const switchMode = (m) => {
+    setMode(m);
+    setForm({ email: "", password: "", confirm: "" });
+    setShowPw(false);
+    setShowCf(false);
+    setError("");
+  };
+
+  // Redirect to backend Google OAuth endpoint
+  const handleGoogleLogin = () => {
+    window.location.href = "http://localhost:5000/api/auth/google";
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    // Basic front-end validation
+    if (!isLogin && form.password !== form.confirm) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const endpoint = isLogin ? "/api/auth/signin" : "/api/auth/signup";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.message || "Something went wrong");
+        return;
+      }
+      // Save token to localStorage
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      // Proceed to the app
+      if (onLogin) onLogin(data);
+    } catch (err) {
+      setError("Cannot connect to server. Make sure the backend is running.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -117,7 +187,7 @@ export default function AuthPage({ onLogin }) {
               </button>
             ))}
           </div>
-          <button className="ar-btn-google" type="button" onClick={() => onLogin && onLogin()}>
+          <button className="ar-btn-google" type="button" onClick={handleGoogleLogin}>
             <GoogleIcon /> Continue with Google
           </button>
           <div className="ar-divider">or continue with email</div>
@@ -155,7 +225,10 @@ export default function AuthPage({ onLogin }) {
               )}
             </div>
             {isLogin && <div className="ar-forgot"><a href="#forgot">Forgot password?</a></div>}
-            <button type="submit" className="ar-btn-primary">{isLogin?"Sign In":"Create Account"}</button>
+            {error && <p className="ar-error">{error}</p>}
+            <button type="submit" className="ar-btn-primary" disabled={loading}>
+              {loading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
+            </button>
             {!isLogin && <p className="ar-terms">By signing up you agree to our <a href="#terms">Terms of Service</a> and <a href="#privacy">Privacy Policy</a>.</p>}
             <div className="ar-switch">
               {isLogin?"Don't have an account?":"Already have an account?"}

@@ -1,110 +1,78 @@
-📄 AI Resume Architect (CareerForge Pro)
-🚀 Overview
+# CareerForge Pro — AI Resume Architect & ATS Optimizer
+# Project 2 | Zaalima Development Q4 Roadmap
 
-AI Resume Architect is a full-stack AI-powered SaaS web application designed to help users create, optimize, and download professional resumes tailored to specific job descriptions. The system leverages Large Language Models (LLMs) to intelligently analyze job requirements and enhance resume content for better ATS (Applicant Tracking System) performance.
+## ⚡ Quick Setup (2 minutes)
 
-🧠 Key Features
+### 1. Get Gemini API Key (Free)
+→ https://aistudio.google.com/app/apikey → Sign In → Create API Key
 
-🔹 Resume Builder
-Interactive form-based resume creation
-Real-time live preview
-Structured data storage
+### 2. Set API Key
+Edit `server/server/.env`:
+```
+GEMINI_API_KEY=AIzaSy...your_key_here
+PORT=5000
+```
 
-🔹 JD Analysis Agent (AI-Powered)
-Extracts:
-Technical skills
-Soft skills
-Tools & technologies
-Uses semantic understanding (LLM) instead of keyword matching
+### 3. Run Server
+```bash
+cd server/server
+npm install
+node index.js
+# → Server on http://localhost:5000
+```
 
-🔹 AI Resume Optimization
-Rewrites resume bullet points professionally
-Aligns resume with job description
-Improves ATS compatibility
+### 4. Run Client
+```bash
+cd client
+npm install
+npm start
+# → App on http://localhost:3000
+```
 
-🔹 ATS Score Calculation
-Calculates match percentage between resume and JD
-Highlights missing keywords
+---
 
-🔹 PDF Generation
-Converts resume UI into pixel-perfect PDF
-Uses headless browser rendering
+## Project 2 Requirements — Implementation Status
 
-🔹 Subscription Model (SaaS)
+| Requirement | Status | Implementation |
+|-------------|--------|----------------|
+| **Gemini 1.5 Flash** (not 2.5!) | ✅ Fixed | `aiService.js` uses `gemini-1.5-flash` |
+| **JD Analysis Agent** | ✅ Done | `POST /api/ai/analyze-jd` |
+| **AI Rewrite Logic** | ✅ Done | `POST /api/ai/rewrite-bullet` |
+| **ATS Scoring** (keyword %) | ✅ Done | `POST /api/ai/ats-score` |
+| **Cover Letter Generator** | ✅ Done | `POST /api/ai/cover-letter` |
+| **SSE Streaming (typing effect)** | ✅ Done | `POST /api/ai/cover-letter-stream` |
+| **PDF text extraction** | ✅ Done | `POST /api/pdf/extract-text` (pdf-parse) |
+| **Full pipeline** | ✅ Done | `POST /api/ai/full-process` |
 
-Free plan (limited usage)
-Pro plan (unlimited features)
-Integrated secure payment system
-🏗️ System Architecture
-Frontend (React)
-      ↓
-Backend (Node.js + Express)
-      ↓
-AI Engine (Gemini API)
-      ↓
-Database (MongoDB)
-      ↓
-PDF Engine (Puppeteer)
-      ↓
-Payment System (Stripe)
+---
 
-🔄 Application Workflow
+## Why the 503 Errors Were Happening
 
-User creates resume using frontend UI
-Job Description is provided by user
-Backend sends JD to AI (Gemini API)
-AI extracts and ranks keywords
-Resume content is rewritten using AI
-ATS score is calculated
-Final resume is rendered and converted to PDF
-User downloads resume or upgrades plan
+The original code used **`gemini-2.5-flash`** — an experimental preview model
+that constantly hits rate limits. The project requirement specifies **`gemini-1.5-flash`**
+which is the stable, production-ready model. This single change fixes all 503 errors.
 
-🛠️ Tech Stack
+---
 
-🖥️ Frontend
-React.js
-Tailwind CSS
-Axios
+## API Endpoints
 
-⚙️ Backend
-Node.js
-Express.js
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/ai/full-process` | Full pipeline: extract + optimize + ATS |
+| POST | `/api/ai/analyze-jd` | Extract keywords from JD |
+| POST | `/api/ai/ats-score` | Calculate ATS score |
+| POST | `/api/ai/cover-letter` | Generate cover letter (sync) |
+| POST | `/api/ai/cover-letter-stream` | Generate cover letter (SSE streaming) |
+| POST | `/api/ai/rewrite-bullet` | Rewrite single bullet with keyword |
+| POST | `/api/pdf/extract-text` | Extract text from PDF upload |
+| POST | `/api/pdf/download` | Generate downloadable PDF |
 
-🧠 AI Integration
-Gemini API (LLM)
+---
 
-🗄️ Database
-MongoDB Atlas
+## Bugs Fixed
 
-📄 PDF Generation
-Puppeteer
-
-💳 Payments
-Stripe
-
-🔧 Tools
-
-Git & GitHub (version control & collaboration)
-
-🧩 Core Modules
-
-Resume Builder UI
-JD Analysis Agent
-Resume Rewriting Engine
-ATS Scoring System
-PDF Rendering Service
-Subscription Management System
-
-👨‍💻 Team Workflow
-
-Git-based collaboration using branches
-Feature-based development
-Pull request-based merging
-Version-controlled codebase
-
-🎯 Learning Outcomes
-Full-stack application development
-AI integration using APIs
-Prompt engineering
-SaaS product architecture
-Real-world project collaboration using Git
+1. Wrong Gemini model (`gemini-2.5-flash` → `gemini-1.5-flash`)
+2. PDF uploads sent placeholder text instead of real content
+3. Resume showed generic "Your Name" / "Alex Johnson" instead of real candidate data
+4. Cover letter said "With fresher years of experience" (jd.experience="fresher" bug)
+5. Cover letter now streams token-by-token with typing cursor effect
