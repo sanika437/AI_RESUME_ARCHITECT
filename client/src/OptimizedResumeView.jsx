@@ -249,7 +249,24 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
           if (data.isDemoMode) {
             setError("⚠️ AI service is busy. Showing a structured template — please re-submit in a moment for AI-optimized content.");
           }
-          setResume(generateOptimizedContent(appData, data.data.optimizedResume));
+          const generatedResume = generateOptimizedContent(appData, data.data.optimizedResume);
+          setResume(generatedResume);
+          
+          try {
+            const token = localStorage.getItem("token");
+            if (token && !data.isDemoMode) {
+              fetch("http://localhost:5000/api/user/history", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  type: "resume",
+                  title: `${generatedResume.title || "Resume"} for ${jd.role || "Job"}`,
+                  data: generatedResume,
+                  atsScore: data.data.ats?.score || null
+                })
+              });
+            }
+          } catch(e) {}
         } else {
           throw new Error(data.error || "Failed to optimize resume");
         }
@@ -333,8 +350,24 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
 
       // Convert streamed plain text to paragraphs
       const paragraphs = fullText.split("\n").filter(l => l.trim());
-      setCoverLetter(parseCoverLetter(fullText, appData, resume));
+      const clData = parseCoverLetter(fullText, appData, resume);
+      setCoverLetter(clData);
       setStreamedText("");
+
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          fetch("http://localhost:5000/api/user/history", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              type: "cover_letter",
+              title: `Cover Letter for ${jd.role || "Job"}`,
+              data: clData
+            })
+          });
+        }
+      } catch(e) {}
 
     } catch (err) {
       console.error("Cover letter error:", err);
@@ -353,7 +386,22 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
         });
         const data = await res2.json();
         if (data.success && data.data.coverLetter?.length > 50) {
-          setCoverLetter(parseCoverLetter(data.data.coverLetter, appData, resume));
+          const clData = parseCoverLetter(data.data.coverLetter, appData, resume);
+          setCoverLetter(clData);
+          try {
+            const token = localStorage.getItem("token");
+            if (token) {
+              fetch("http://localhost:5000/api/user/history", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  type: "cover_letter",
+                  title: `Cover Letter for ${jd.role || "Job"}`,
+                  data: clData
+                })
+              });
+            }
+          } catch(e) {}
           return;
         }
       } catch (_) {}

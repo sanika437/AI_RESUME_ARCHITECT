@@ -89,8 +89,13 @@ const CSS = `
   @media(max-width:480px){.ar-card{padding:30px 22px 26px}.ar-heading{font-size:24px}}
 `;
 
-export default function AuthPage({ onLogin }) {
-  const [mode, setMode] = useState("login");
+export default function AuthPage({ onLogin, tab = "login" }) {
+  const [mode, setMode] = useState(tab);
+  
+  useEffect(() => {
+    setMode(tab);
+  }, [tab]);
+
   const [showPw, setShowPw] = useState(false);
   const [showCf, setShowCf] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", confirm: "" });

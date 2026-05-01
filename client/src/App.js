@@ -1,4 +1,6 @@
 import { useState } from "react";
+import LandingPage from "./LandingPage";
+import Dashboard from "./Dashboard";
 import LoginPage from "./loginPage";
 import MethodSelection from "./Methodselection";
 import ResumeUploadPage from "./Resumeuploadpage";
@@ -10,15 +12,18 @@ import ATSScoreView from "./ATSScoreView";
 
 /*
   APP FLOW:
-  1. login
-  2. method-select
+  1. landing
+  2. auth (login/signup)
+  3. dashboard (history & payment)
+  4. method-select
      - "upload" → resume-upload → job-description-upload → optimized-resume → ats-score
      - "scratch" → template-select → resume-builder → job-description-scratch → optimized-resume → ats-score
 */
 
 export default function App() {
-  const [page, setPage] = useState("login");
+  const [page, setPage] = useState("landing");
   const [appData, setAppData] = useState({
+    tab: "login",         // "login" | "signup"
     method: null,         // "upload" | "scratch"
     uploadedFile: null,   // File object from upload page
     templateId: null,     // selected template id
@@ -32,8 +37,16 @@ export default function App() {
     setPage(nextPage);
   };
 
-  if (page === "login") {
-    return <LoginPage onLogin={() => go("method-select")} />;
+  if (page === "landing") {
+    return <LandingPage onNavigate={(p, data) => go(p, data)} />;
+  }
+
+  if (page === "auth") {
+    return <LoginPage tab={appData.tab} onLogin={() => go("dashboard")} />;
+  }
+
+  if (page === "dashboard") {
+    return <Dashboard onNavigate={(p, data) => go(p, data)} appData={appData} />;
   }
 
   if (page === "method-select") {
