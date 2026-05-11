@@ -15,34 +15,38 @@ if (!process.env.GROQ_API_KEY) {
 // ─────────────────────────────────────────────
 // Core: Standard Groq call (OpenAI-compatible)
 // ─────────────────────────────────────────────
+const axios = require("axios");
+
 async function callAI(prompt, maxTokens = 2048) {
-  const response = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      max_tokens: maxTokens,
-      temperature: 0.3,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  try {
+    const response = await axios.post(
+      GROQ_URL,
+      {
+        model: GROQ_MODEL,
+        max_tokens: maxTokens,
+        temperature: 0.3,
+        messages: [{ role: "user", content: prompt }],
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        timeout: 60000 // 60 seconds timeout
+      }
+    );
 
-  const data = await response.json();
+    const data = response.data;
+    if (!data.choices || !data.choices[0]) {
+      throw new Error("Empty response from Groq API");
+    }
 
-  if (data.error) {
-    const errMsg = data.error?.message || JSON.stringify(data.error);
+    return data.choices[0].message.content || "";
+  } catch (error) {
+    const errMsg = error.response?.data?.error?.message || error.message;
     console.error("Groq API error:", errMsg);
     throw new Error(`Groq API error: ${errMsg}`);
   }
-
-  if (!data.choices || !data.choices[0]) {
-    throw new Error("Empty response from Groq API");
-  }
-
-  return data.choices[0].message.content || "";
 }
 
 // ─────────────────────────────────────────────
@@ -146,23 +150,21 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text):
 {
   "extractedSkills": ["skill1", "skill2", "skill3"],
   "optimizedResume": {
-    "name": "candidate full name from resume",
-    "email": "email from resume",
-    "phone": "phone from resume",
-    "location": "city/state from resume",
-    "linkedin": "linkedin url if present, else empty string",
-    "title": "optimized job title matching the JD role",
+    "contacts": {
+      "firstName": "First",
+      "lastName": "Last",
+      "email": "email",
+      "phone": "phone",
+      "jobTitle": "Optimized Title"
+    },
     "summary": "2-3 sentence ATS-optimized summary using JD keywords",
-    "skills": ["jd_keyword1", "jd_keyword2", "skill3", "skill4", "skill5", "skill6"],
+    "skills": ["jd_keyword1", "jd_keyword2", "skill3", "skill4"],
     "experience": [
       {
         "role": "Job Title",
         "company": "Company Name",
-        "date": "Start - End",
-        "bullets": [
-          "Rewritten bullet using JD keyword, quantified if possible",
-          "Another achievement matching JD requirements"
-        ]
+        "duration": "Start - End",
+        "description": "Rewritten 2-3 sentence description incorporating JD keywords and strong action verbs"
       }
     ],
     "education": [
@@ -175,8 +177,21 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text):
     "projects": [
       {
         "name": "Project Name",
-        "description": "Project description using JD keywords",
-        "tech": ["tech1", "tech2"]
+        "tech": "React, Node",
+        "description": "Rewritten project description using JD keywords and strong action verbs"
+      }
+    ],
+    "certifications": [
+      {
+        "name": "Cert Name",
+        "issuer": "Issuer",
+        "year": "Year"
+      }
+    ],
+    "languages": [
+      {
+        "language": "Lang",
+        "proficiency": "Proficiency"
       }
     ]
   },
@@ -186,18 +201,18 @@ Return ONLY a valid JSON object (no markdown, no code blocks, no extra text):
     "missingKeywords": ["missing1", "missing2"],
     "suggestions": [
       "Add quantified achievements",
-      "Include missing keyword X",
-      "Specific improvement suggestion"
+      "Include missing keyword X"
     ]
   }
 }
 
 Rules:
-- EXTRACT REAL INFO (name, email, phone) from the resume text provided
-- Rewrite bullet points to sound authoritative and include JD keywords
-- ATS score: realistic range 55-90
-- If no work experience: return empty experience array []
-- Return ONLY the JSON object, nothing else`;
+1. CRITICAL: DO NOT summarize, compress, or remove any existing valid information. You MUST preserve ALL core experience entries, ALL education details, ALL projects, ALL certifications, and ALL languages provided by the user. Do not drop an entry just because it doesn't match the JD.
+2. ENHANCE, DO NOT REPLACE: Your primary job is to rewrite the descriptions and bullet points within the existing entries. Use strong action verbs (e.g., "Spearheaded", "Architected", "Engineered") and naturally integrate critical keywords from the JD where appropriate.
+3. Quantify achievements whenever possible without hallucinating wild or inaccurate claims.
+4. Align the overall tone to match the seniority and requirements of the Job Description.
+5. If a section is empty in the original resume (e.g., no projects or no certifications), return an empty array [] for that section in the JSON.
+6. Return ONLY the raw JSON object, nothing else. Do not wrap it in markdown.`;
 
   const text = await callAI(prompt, 3500);
 

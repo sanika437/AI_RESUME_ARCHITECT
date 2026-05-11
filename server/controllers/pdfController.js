@@ -1,14 +1,35 @@
-const { generatePDF } = require("../services/pdfService");
+const { generatePDF, buildResumeHTML, buildCoverLetterHTML } = require("../services/puppeteerService");
 
-// 🔹 Resume PDF
-const downloadResumePDF = (req, res) => {
+const downloadPDF = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { type, data, layout, accent } = req.body;
 
-    generatePDF(text, res);
+    if (!type || !data) {
+      return res.status(400).json({ error: "Missing type or data" });
+    }
+
+    let htmlContent = "";
+    let fileName = "document.pdf";
+
+    if (type === "resume") {
+      htmlContent = buildResumeHTML(data, layout, accent);
+      fileName = "optimized_resume.pdf";
+    } else if (type === "coverLetter") {
+      htmlContent = buildCoverLetterHTML(data);
+      fileName = "cover_letter.pdf";
+    } else {
+      return res.status(400).json({ error: "Invalid type. Must be 'resume' or 'coverLetter'" });
+    }
+
+    const pdfBuffer = await generatePDF(htmlContent);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+    res.end(pdfBuffer, 'binary');
   } catch (error) {
+    console.error("PDF download error:", error);
     res.status(500).json({ error: "Error generating PDF" });
   }
 };
 
-module.exports = { downloadResumePDF };
+module.exports = { downloadPDF };

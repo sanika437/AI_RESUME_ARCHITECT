@@ -80,11 +80,8 @@ const createCheckoutSession = async (req, res) => {
       client_reference_id: req.user.userId, // We can use this to fulfill in a webhook later
     });
 
-    // In a real app, you'd use a webhook to mark them as 'pro', 
-    // but for immediate gratification in this demo, let's just mark them as 'pro' immediately 
-    // (Note: Do not do this in production without verifying webhook!)
-    user.subscription = "pro";
-    await user.save();
+    // We rely on the Stripe webhook to mark them as 'pro'
+    // when the checkout.session.completed event is received.
 
     res.json({ id: session.id, url: session.url });
   } catch (error) {
@@ -93,9 +90,19 @@ const createCheckoutSession = async (req, res) => {
   }
 };
 
+const devUpgrade = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.user.userId, { subscription: "pro" }, { new: true });
+    res.json({ message: "Upgraded to Pro in Dev Mode", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 module.exports = {
   getProfile,
   getUserHistory,
   saveToHistory,
-  createCheckoutSession
+  createCheckoutSession,
+  devUpgrade
 };

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { buildResumeHTML } from "./utils/templateRenderer";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Epilogue:wght@300;400;500;600;700&family=Crimson+Pro:wght@400;600&display=swap');
@@ -75,48 +76,50 @@ function generateOptimizedContent(appData, optimizedData) {
   const jd = appData.jobDescription || {};
 
   // ✅ If backend returned a structured optimizedResume object, use it directly
-  if (optimizedData && typeof optimizedData === 'object' && optimizedData.name) {
-    return {
-      name: optimizedData.name || "Candidate Name",
-      title: optimizedData.title || jd.role || "Software Engineer",
+  if (optimizedData && typeof optimizedData === 'object' && (optimizedData.contacts || optimizedData.name)) {
+    const contacts = optimizedData.contacts || {
+      firstName: optimizedData.name || "Candidate Name",
+      lastName: "",
+      jobTitle: optimizedData.title || jd.role || "",
       email: optimizedData.email || "",
-      phone: optimizedData.phone || "",
-      location: optimizedData.location || "",
-      linkedin: optimizedData.linkedin || "",
+      phone: optimizedData.phone || ""
+    };
+
+    return {
+      contacts,
       summary: optimizedData.summary || "",
       experience: Array.isArray(optimizedData.experience) ? optimizedData.experience : [],
+      education: Array.isArray(optimizedData.education) ? optimizedData.education : [],
+      projects: Array.isArray(optimizedData.projects) ? optimizedData.projects : [],
+      certifications: Array.isArray(optimizedData.certifications) ? optimizedData.certifications : [],
+      languages: Array.isArray(optimizedData.languages) ? optimizedData.languages : [],
       skills: Array.isArray(optimizedData.skills) ? optimizedData.skills : [],
-      education: Array.isArray(optimizedData.education)
-        ? optimizedData.education[0] || { degree: "", college: "", year: "" }
-        : (optimizedData.education || { degree: "", college: "", year: "" }),
     };
   }
 
-  // Fallback: build from appData when API is unavailable
-  const rd = (appData.resumeData && appData.resumeData.contacts) ? appData.resumeData.contacts : {};
-  const firstName = rd.firstName || "";
-  const lastName = rd.lastName || "";
-  const name = (firstName + " " + lastName).trim() || "";
-  const title = rd.jobTitle || jd.role || "Software Developer";
+  // Fallback: build from appData when API is unavailable or schema mismatch
+  if (appData.resumeData) {
+    return appData.resumeData;
+  }
+
   return {
-    name: name || "(Your name will appear here when AI processes your resume)",
-    title,
-    email: rd.email || "",
-    phone: rd.phone || "",
-    location: "",
-    linkedin: "",
-    summary: "Motivated " + title + " with hands-on experience in backend development. Skilled at building scalable REST APIs and working with databases. Seeking to contribute to a " + (jd.role || "software engineering") + " role.",
+    contacts: { firstName: "(Name will appear", lastName: "here)", jobTitle: jd.role || "Software Developer", email: "", phone: "" },
+    summary: "Motivated backend developer seeking to contribute to a " + (jd.role || "software engineering") + " role.",
     experience: [],
     skills: ["JavaScript", "Node.js", "REST APIs", "MySQL", "Git"],
-    education: { degree: rd.degree || "B.Tech Computer Science", college: rd.college || "", year: rd.year || "" },
+    education: [{ degree: "B.Tech Computer Science", college: "", year: "" }],
+    projects: [],
+    certifications: [],
+    languages: []
   };
 }
 
 function generateCoverLetterLocal(appData, resume) {
   const jd = appData.jobDescription || {};
-  const name = (resume && resume.name && resume.name !== "Your Name") ? resume.name : "Candidate";
-  const email = (resume && resume.email && !resume.email.includes("example.com")) ? resume.email : "";
-  const phone = (resume && resume.phone && !resume.phone.includes("00000")) ? resume.phone : "";
+  const c = resume?.contacts || {};
+  const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "Candidate";
+  const email = (c.email && !c.email.includes("example.com")) ? c.email : "";
+  const phone = (c.phone && !c.phone.includes("00000")) ? c.phone : "";
   const role = jd.role || "the position";
   // Fix: don't use jd.experience as "years" — it could be "fresher", "2 years", etc.
   const rawExp = jd.experience || "";
@@ -146,7 +149,8 @@ function generateCoverLetterLocal(appData, resume) {
 function parseCoverLetter(text, appData, resume) {
   const lines = text.split('\n').filter(l => l.trim());
   const jd = appData.jobDescription || {};
-  const name = (resume && resume.name) ? resume.name : "Alex Johnson";
+  const c = resume?.contacts || {};
+  const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "Alex Johnson";
   const email = (resume && resume.email) ? resume.email : "alex.johnson@email.com";
   const phone = (resume && resume.phone) ? resume.phone : "+1 (555) 234-5678";
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -204,14 +208,33 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
           resumeText = `${rd.firstName || ""} ${rd.lastName || ""}\n`;
           resumeText += `Email: ${rd.email || ""}\nPhone: ${rd.phone || ""}\n\n`;
           resumeText += `SUMMARY\n${appData.resumeData.summary || ""}\n\n`;
-          if (appData.resumeData.skills) {
-            resumeText += `SKILLS\n${appData.resumeData.skills}\n\n`;
+          if (appData.resumeData.skills && Array.isArray(appData.resumeData.skills)) {
+            resumeText += `SKILLS\n${appData.resumeData.skills.join(", ")}\n\n`;
           }
-          if (appData.resumeData.experience) {
-            resumeText += `EXPERIENCE\n${appData.resumeData.experience}\n\n`;
+          if (appData.resumeData.experience && Array.isArray(appData.resumeData.experience)) {
+            resumeText += `EXPERIENCE\n` + appData.resumeData.experience.map(e => 
+              `${e.role} at ${e.company} (${e.duration})\n${e.description}`
+            ).join('\n\n') + `\n\n`;
           }
-          if (appData.resumeData.education) {
-            resumeText += `EDUCATION\n${appData.resumeData.education}\n`;
+          if (appData.resumeData.education && Array.isArray(appData.resumeData.education)) {
+            resumeText += `EDUCATION\n` + appData.resumeData.education.map(e => 
+              `${e.degree} at ${e.college} (${e.year})`
+            ).join('\n') + `\n\n`;
+          }
+          if (appData.resumeData.projects && Array.isArray(appData.resumeData.projects)) {
+            resumeText += `PROJECTS\n` + appData.resumeData.projects.map(p => 
+              `${p.name} [${p.tech}]\n${p.description}`
+            ).join('\n\n') + `\n\n`;
+          }
+          if (appData.resumeData.certifications && Array.isArray(appData.resumeData.certifications)) {
+            resumeText += `CERTIFICATIONS\n` + appData.resumeData.certifications.map(c => 
+              `${c.name} - ${c.issuer} (${c.year})`
+            ).join('\n') + `\n\n`;
+          }
+          if (appData.resumeData.languages && Array.isArray(appData.resumeData.languages)) {
+            resumeText += `LANGUAGES\n` + appData.resumeData.languages.map(l => 
+              `${l.language} (${l.proficiency})`
+            ).join(', ') + `\n`;
           }
         }
 
@@ -409,30 +432,57 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
     }
   };
 
-  const handleDownloadCL = function() {
+  const handleDownloadCL = async function() {
     if (!coverLetter) return;
-    var lines = [coverLetter.name, coverLetter.email + " | " + coverLetter.phone, coverLetter.date, ""].concat(coverLetter.paragraphs);
-    var txt = lines.join("\n\n");
-    var a = document.createElement("a");
-    a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(txt);
-    a.download = "cover_letter.txt";
-    a.click();
+    try {
+      const response = await fetch("/api/pdf/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "coverLetter", data: coverLetter }),
+      });
+      if (!response.ok) throw new Error("Failed to generate PDF");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cover_letter.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading Cover Letter PDF:", err);
+      alert("Failed to download Cover Letter PDF. Please try again.");
+    }
   };
 
-  const handleDownload = function() {
+  const handleDownload = async function() {
     if (!resume) return;
-    var expText = resume.experience.map(function(e) {
-      return e.role + " @ " + e.company + " (" + e.date + ")\n" + e.bullets.map(function(b) { return "- " + b; }).join("\n");
-    }).join("\n\n");
-    var txt = resume.name + "\n" + resume.title + "\n" + resume.email + " | " + resume.phone
-      + "\n\nSUMMARY\n" + resume.summary
-      + "\n\nEXPERIENCE\n" + expText
-      + "\n\nSKILLS\n" + resume.skills.join(", ")
-      + "\n\nEDUCATION\n" + resume.education.degree + " - " + resume.education.college + " " + resume.education.year;
-    var a = document.createElement("a");
-    a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(txt);
-    a.download = "optimized_resume.txt";
-    a.click();
+    try {
+      const response = await fetch("/api/pdf/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          type: "resume", 
+          data: resume,
+          layout: appData.selectedTemplate?.layout || 'classic',
+          accent: appData.selectedTemplate?.accent || '#60A5FA'
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to generate PDF");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "optimized_resume.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading Resume PDF:", err);
+      alert("Failed to download Resume PDF. Please try again.");
+    }
   };
 
   return (
@@ -510,50 +560,12 @@ export default function OptimizedResumeView({ appData, onShowATS, onBack }) {
                 <p className="orv-loading-text">AI is optimizing your resume...</p>
               </div>
             ) : resume && (
-              <div className="orv-resume-body">
-                <div className="orv-resume-name">{resume.name}</div>
-                <div className="orv-resume-title">{resume.title}</div>
-                <div className="orv-resume-contact">
-                  <span>{resume.email}</span>
-                  <span>{resume.phone}</span>
-                  <span>{resume.location}</span>
-                  <span>{resume.linkedin}</span>
-                </div>
-                <div className="orv-resume-section">
-                  <div className="orv-resume-sh">Professional Summary</div>
-                  <p className="orv-resume-p">{resume.summary}</p>
-                </div>
-                <div className="orv-resume-section">
-                  <div className="orv-resume-sh">Experience</div>
-                  {resume.experience.map(function(exp, i) {
-                    return (
-                      <div key={i} className="orv-resume-exp-item">
-                        <div className="orv-resume-exp-header">
-                          <div>
-                            <div className="orv-resume-role">{exp.role}</div>
-                            <div className="orv-resume-company">{exp.company}</div>
-                          </div>
-                          <div className="orv-resume-date">{exp.date}</div>
-                        </div>
-                        <ul className="orv-resume-bullets">
-                          {exp.bullets.map(function(b, j) { return <li key={j}>{b}</li>; })}
-                        </ul>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="orv-resume-section">
-                  <div className="orv-resume-sh">Skills</div>
-                  <div className="orv-resume-skills">
-                    {resume.skills.map(function(s, i) { return <span key={i} className="orv-resume-skill">{s}</span>; })}
-                  </div>
-                </div>
-                <div className="orv-resume-section">
-                  <div className="orv-resume-sh">Education</div>
-                  <div className="orv-resume-role">{resume.education.degree}</div>
-                  <div className="orv-resume-company">{resume.education.college}</div>
-                  <div className="orv-resume-date">{resume.education.year}</div>
-                </div>
+              <div className="orv-resume-body" style={{ padding: 0, overflow: "hidden" }}>
+                <iframe
+                  srcDoc={buildResumeHTML(resume, appData.selectedTemplate?.layout, appData.selectedTemplate?.accent)}
+                  style={{ width: "100%", height: "100%", border: "none", minHeight: "600px" }}
+                  title="Optimized Resume Preview"
+                />
               </div>
             )}
           </div>

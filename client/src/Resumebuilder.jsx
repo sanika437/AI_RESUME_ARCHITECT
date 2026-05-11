@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { buildResumeHTML } from "./utils/templateRenderer";
 
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -62,6 +63,29 @@ const styles = `
   }
 
   .rb-field-group { display: flex; flex-direction: column; gap: 12px; }
+  .rb-array-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .rb-array-remove {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(248,113,113,0.15); color: #f87171;
+    border: none; border-radius: 6px; padding: 4px 8px;
+    font-size: 11px; cursor: pointer; transition: 0.2s;
+  }
+  .rb-array-remove:hover { background: rgba(248,113,113,0.3); }
+
+  .rb-add-btn {
+    background: rgba(167,139,250,0.1); border: 1px dashed rgba(167,139,250,0.4);
+    color: #c4b5fd; padding: 10px; border-radius: 10px; cursor: pointer;
+    text-align: center; font-size: 13px; font-family: inherit; transition: 0.2s;
+    width: 100%; margin-top: 5px;
+  }
+  .rb-add-btn:hover { background: rgba(167,139,250,0.2); }
 
   .rb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -85,7 +109,7 @@ const styles = `
     transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     width: 100%;
   }
-  .rb-textarea { resize: vertical; min-height: 110px; line-height: 1.6; }
+  .rb-textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
   .rb-input::placeholder, .rb-textarea::placeholder { color: rgba(255,255,255,0.22); }
   .rb-input:hover, .rb-textarea:hover {
     border-color: rgba(167,139,250,0.35);
@@ -140,11 +164,7 @@ const styles = `
     cursor: pointer; white-space: nowrap; transition: background 0.2s;
   }
   .rb-skill-add-btn:hover:not(:disabled) { background: rgba(167,139,250,0.2); }
-  .rb-skill-add-btn:disabled { 
-    opacity: 0.4; 
-    cursor: not-allowed; 
-    border-color: rgba(167,139,250,0.2);
-  }
+  .rb-skill-add-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: rgba(167,139,250,0.2); }
 
   .rb-nav { display: flex; gap: 10px; margin-top: 1.5rem; }
 
@@ -168,55 +188,6 @@ const styles = `
   }
   .rb-btn-back:hover { background: rgba(255,255,255,0.1); }
 
-  /* Preview */
-  .rb-preview-col { position: sticky; top: 2rem; }
-  .rb-preview-label {
-    font-size: 11px; font-weight: 500;
-    color: rgba(255,255,255,0.35);
-    letter-spacing: 0.07em; text-transform: uppercase;
-    margin-bottom: 10px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .rb-preview-label::before {
-    content: ''; display: inline-block;
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #4ade80; box-shadow: 0 0 6px #4ade80;
-  }
-  .rb-preview-card {
-    background: #fff; border-radius: 14px; padding: 1.5rem;
-    min-height: 400px; max-height: 580px; overflow-y: auto;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.35);
-    color: #1a1a2e; font-family: 'Inter', sans-serif;
-    scrollbar-width: thin; scrollbar-color: #ede9fe #fff;
-  }
-  .pv-name { font-size: 22px; font-weight: 700; color: #1a1a2e; line-height: 1.2; }
-  .pv-name.empty { color: #d1d5db; }
-  .pv-role { font-size: 13px; font-weight: 500; color: #7c3aed; margin-top: 3px; }
-  .pv-role.empty { color: #e5e7eb; }
-  .pv-contacts { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 7px; }
-  .pv-contact { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6b7280; }
-  .pv-divider { height: 1.5px; background: #ede9fe; margin: 10px 0; }
-  .pv-section { margin-bottom: 12px; }
-  .pv-section-title {
-    font-size: 10px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: #7c3aed; margin-bottom: 6px;
-    padding-bottom: 3px; border-bottom: 1px solid #ede9fe;
-  }
-  .pv-exp-role { font-size: 13px; font-weight: 600; color: #1a1a2e; }
-  .pv-exp-company { font-size: 11.5px; color: #6b7280; margin-bottom: 3px; }
-  .pv-exp-desc { font-size: 11.5px; color: #374151; line-height: 1.5; }
-  .pv-edu-degree { font-size: 13px; font-weight: 600; color: #1a1a2e; }
-  .pv-edu-college { font-size: 11.5px; color: #6b7280; }
-  .pv-skills-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
-  .pv-skill {
-    background: #ede9fe; color: #5b21b6;
-    border-radius: 20px; padding: 2px 10px;
-    font-size: 11px; font-weight: 500;
-  }
-  .pv-summary { font-size: 11.5px; color: #374151; line-height: 1.6; }
-  .pv-placeholder { font-size: 11px; color: #d1d5db; text-align: center; padding: 1rem 0; }
-
   /* Finalize */
   .rb-finalize { text-align: center; padding: 0.5rem 0; }
   .rb-finalize-icon { font-size: 42px; margin-bottom: 12px; }
@@ -233,84 +204,34 @@ const styles = `
   .rb-check-badge.miss { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.1); }
 `;
 
-const STEPS = ["Contacts", "Experience", "Education", "Skills", "Summary", "Finalize"];
+const STEPS = ["Contacts", "Experience", "Education", "Projects", "Certifications", "Languages", "Skills", "Summary", "Finalize"];
 const STEP_META = [
   { title: "Contact Details", subtitle: "Let's start with who you are" },
   { title: "Work Experience", subtitle: "Tell us where you've worked" },
   { title: "Education", subtitle: "Share your academic background" },
+  { title: "Projects", subtitle: "Highlight key projects (Optional)" },
+  { title: "Certifications", subtitle: "Add professional certifications (Optional)" },
+  { title: "Languages", subtitle: "What languages do you speak? (Optional)" },
   { title: "Skills", subtitle: "What are you great at?" },
   { title: "Professional Summary", subtitle: "Summarise yourself in a few lines" },
-  { title: "Finalize Resume", subtitle: "Review everything and download" },
+  { title: "Finalize Resume", subtitle: "Review everything and optimize" },
 ];
 
-const PhoneIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.78a16 16 0 0 0 6.31 6.31l.95-.94a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-  </svg>
-);
+function LivePreview({ data, selectedTemplate }) {
+  const layout = selectedTemplate?.layout || 'classic';
+  const accent = selectedTemplate?.accent || '#1E293B';
 
-const MailIcon = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-    <polyline points="22,6 12,13 2,6"/>
-  </svg>
-);
-
-function LivePreview({ data }) {
-  const { contacts, experience, education, skills, summary } = data;
-  const fullName = [contacts.firstName, contacts.lastName].filter(Boolean).join(" ");
-  const hasContact = contacts.phone || contacts.email;
-  const hasExp = experience.company || experience.role;
-  const hasEdu = education.college || education.degree;
-  const hasAny = fullName || hasContact || hasExp || hasEdu || skills.length > 0 || summary;
+  const html = useMemo(() => {
+    return buildResumeHTML(data, layout, accent);
+  }, [data, layout, accent]);
 
   return (
-    <div className="rb-preview-card">
-      <div className={`pv-name${fullName ? "" : " empty"}`}>{fullName || "Your Name"}</div>
-      <div className={`pv-role${contacts.jobTitle ? "" : " empty"}`}>{contacts.jobTitle || "Job Title"}</div>
-      {hasContact && (
-        <div className="pv-contacts">
-          {contacts.phone && <span className="pv-contact"><PhoneIcon />&nbsp;+91 {contacts.phone}</span>}
-          {contacts.email && <span className="pv-contact"><MailIcon />&nbsp;{contacts.email}</span>}
-        </div>
-      )}
-
-      <div className="pv-divider" />
-
-      {hasExp && (
-        <div className="pv-section">
-          <div className="pv-section-title">Experience</div>
-          {experience.role && <div className="pv-exp-role">{experience.role}</div>}
-          <div className="pv-exp-company">{[experience.company, experience.duration].filter(Boolean).join(" · ")}</div>
-          {experience.description && <div className="pv-exp-desc">{experience.description}</div>}
-        </div>
-      )}
-
-      {hasEdu && (
-        <div className="pv-section">
-          <div className="pv-section-title">Education</div>
-          {education.degree && <div className="pv-edu-degree">{education.degree}</div>}
-          <div className="pv-edu-college">{[education.college, education.year].filter(Boolean).join(" · ")}</div>
-        </div>
-      )}
-
-      {skills.length > 0 && (
-        <div className="pv-section">
-          <div className="pv-section-title">Skills</div>
-          <div className="pv-skills-wrap">
-            {skills.map((s, i) => <span key={i} className="pv-skill">{s}</span>)}
-          </div>
-        </div>
-      )}
-
-      {summary && (
-        <div className="pv-section">
-          <div className="pv-section-title">Summary</div>
-          <div className="pv-summary">{summary}</div>
-        </div>
-      )}
-
-      {!hasAny && <div className="pv-placeholder">Start filling the form to see your resume here</div>}
+    <div className="rb-preview-card" style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.35)' }}>
+      <iframe 
+        srcDoc={html} 
+        style={{ width: '100%', height: '100%', border: 'none', minHeight: 600 }} 
+        title="Resume Preview"
+      />
     </div>
   );
 }
@@ -349,47 +270,174 @@ function StepContacts({ data, onChange }) {
 }
 
 function StepExperience({ data, onChange }) {
-  const set = (k) => (e) => onChange({ ...data, [k]: e.target.value });
+  const add = () => onChange([...data, { company: "", role: "", duration: "", description: "" }]);
+  const update = (idx, field, val) => {
+    const newData = [...data];
+    newData[idx][field] = val;
+    onChange(newData);
+  };
+  const remove = (idx) => onChange(data.filter((_, i) => i !== idx));
+
   return (
     <div className="rb-field-group">
-      <div className="rb-row">
-        <div className="rb-field">
-          <label className="rb-label">Company</label>
-          <input className="rb-input" placeholder="Acme Inc." value={data.company} onChange={set("company")} />
+      {data.map((exp, idx) => (
+        <div key={idx} className="rb-array-item">
+          <button className="rb-array-remove" onClick={() => remove(idx)}>Remove</button>
+          <div className="rb-row" style={{ marginTop: 10 }}>
+            <div className="rb-field">
+              <label className="rb-label">Company</label>
+              <input className="rb-input" placeholder="Acme Inc." value={exp.company} onChange={e => update(idx, "company", e.target.value)} />
+            </div>
+            <div className="rb-field">
+              <label className="rb-label">Role / Position</label>
+              <input className="rb-input" placeholder="Software Engineer" value={exp.role} onChange={e => update(idx, "role", e.target.value)} />
+            </div>
+          </div>
+          <div className="rb-field" style={{ marginTop: 12 }}>
+            <label className="rb-label">Duration</label>
+            <input className="rb-input" placeholder="Jan 2022 – Present" value={exp.duration} onChange={e => update(idx, "duration", e.target.value)} />
+          </div>
+          <div className="rb-field" style={{ marginTop: 12 }}>
+            <label className="rb-label">Description / Achievements</label>
+            <textarea className="rb-textarea" placeholder="Describe your key responsibilities and achievements…" value={exp.description} onChange={e => update(idx, "description", e.target.value)} />
+          </div>
         </div>
-        <div className="rb-field">
-          <label className="rb-label">Role / Position</label>
-          <input className="rb-input" placeholder="Software Engineer" value={data.role} onChange={set("role")} />
-        </div>
-      </div>
-      <div className="rb-field">
-        <label className="rb-label">Duration</label>
-        <input className="rb-input" placeholder="Jan 2022 – Present" value={data.duration} onChange={set("duration")} />
-      </div>
-      <div className="rb-field">
-        <label className="rb-label">Description</label>
-        <textarea className="rb-textarea" placeholder="Describe your key responsibilities and achievements…" value={data.description} onChange={set("description")} />
-      </div>
+      ))}
+      <button className="rb-add-btn" onClick={add}>+ Add Another Job</button>
     </div>
   );
 }
 
 function StepEducation({ data, onChange }) {
-  const set = (k) => (e) => onChange({ ...data, [k]: e.target.value });
+  const add = () => onChange([...data, { college: "", degree: "", year: "" }]);
+  const update = (idx, field, val) => {
+    const newData = [...data];
+    newData[idx][field] = val;
+    onChange(newData);
+  };
+  const remove = (idx) => onChange(data.filter((_, i) => i !== idx));
+
   return (
     <div className="rb-field-group">
-      <div className="rb-field">
-        <label className="rb-label">College / University</label>
-        <input className="rb-input" placeholder="e.g. IIT Bombay" value={data.college} onChange={set("college")} />
-      </div>
-      <div className="rb-field">
-        <label className="rb-label">Degree</label>
-        <input className="rb-input" placeholder="B.Tech in Computer Science" value={data.degree} onChange={set("degree")} />
-      </div>
-      <div className="rb-field">
-        <label className="rb-label">Graduation Year</label>
-        <input className="rb-input" placeholder="2024" value={data.year} onChange={set("year")} />
-      </div>
+      {data.map((edu, idx) => (
+        <div key={idx} className="rb-array-item">
+          <button className="rb-array-remove" onClick={() => remove(idx)}>Remove</button>
+          <div className="rb-field" style={{ marginTop: 10 }}>
+            <label className="rb-label">College / University</label>
+            <input className="rb-input" placeholder="e.g. IIT Bombay" value={edu.college} onChange={e => update(idx, "college", e.target.value)} />
+          </div>
+          <div className="rb-field" style={{ marginTop: 12 }}>
+            <label className="rb-label">Degree</label>
+            <input className="rb-input" placeholder="B.Tech in Computer Science" value={edu.degree} onChange={e => update(idx, "degree", e.target.value)} />
+          </div>
+          <div className="rb-field" style={{ marginTop: 12 }}>
+            <label className="rb-label">Graduation Year</label>
+            <input className="rb-input" placeholder="2024" value={edu.year} onChange={e => update(idx, "year", e.target.value)} />
+          </div>
+        </div>
+      ))}
+      <button className="rb-add-btn" onClick={add}>+ Add Another Degree</button>
+    </div>
+  );
+}
+
+function StepProjects({ data, onChange }) {
+  const add = () => onChange([...data, { name: "", description: "", tech: "" }]);
+  const update = (idx, field, val) => {
+    const newData = [...data];
+    newData[idx][field] = val;
+    onChange(newData);
+  };
+  const remove = (idx) => onChange(data.filter((_, i) => i !== idx));
+
+  return (
+    <div className="rb-field-group">
+      {data.map((proj, idx) => (
+        <div key={idx} className="rb-array-item">
+          <button className="rb-array-remove" onClick={() => remove(idx)}>Remove</button>
+          <div className="rb-row" style={{ marginTop: 10 }}>
+            <div className="rb-field">
+              <label className="rb-label">Project Name</label>
+              <input className="rb-input" placeholder="E-commerce App" value={proj.name} onChange={e => update(idx, "name", e.target.value)} />
+            </div>
+            <div className="rb-field">
+              <label className="rb-label">Tech Stack</label>
+              <input className="rb-input" placeholder="React, Node.js" value={proj.tech} onChange={e => update(idx, "tech", e.target.value)} />
+            </div>
+          </div>
+          <div className="rb-field" style={{ marginTop: 12 }}>
+            <label className="rb-label">Description</label>
+            <textarea className="rb-textarea" placeholder="What did this project do?..." value={proj.description} onChange={e => update(idx, "description", e.target.value)} />
+          </div>
+        </div>
+      ))}
+      <button className="rb-add-btn" onClick={add}>+ Add Another Project</button>
+    </div>
+  );
+}
+
+function StepCertifications({ data, onChange }) {
+  const add = () => onChange([...data, { name: "", issuer: "", year: "" }]);
+  const update = (idx, field, val) => {
+    const newData = [...data];
+    newData[idx][field] = val;
+    onChange(newData);
+  };
+  const remove = (idx) => onChange(data.filter((_, i) => i !== idx));
+
+  return (
+    <div className="rb-field-group">
+      {data.map((cert, idx) => (
+        <div key={idx} className="rb-array-item">
+          <button className="rb-array-remove" onClick={() => remove(idx)}>Remove</button>
+          <div className="rb-field" style={{ marginTop: 10 }}>
+            <label className="rb-label">Certification Name</label>
+            <input className="rb-input" placeholder="AWS Certified Solutions Architect" value={cert.name} onChange={e => update(idx, "name", e.target.value)} />
+          </div>
+          <div className="rb-row" style={{ marginTop: 12 }}>
+            <div className="rb-field">
+              <label className="rb-label">Issuer</label>
+              <input className="rb-input" placeholder="Amazon Web Services" value={cert.issuer} onChange={e => update(idx, "issuer", e.target.value)} />
+            </div>
+            <div className="rb-field">
+              <label className="rb-label">Year</label>
+              <input className="rb-input" placeholder="2023" value={cert.year} onChange={e => update(idx, "year", e.target.value)} />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button className="rb-add-btn" onClick={add}>+ Add Another Certification</button>
+    </div>
+  );
+}
+
+function StepLanguages({ data, onChange }) {
+  const add = () => onChange([...data, { language: "", proficiency: "" }]);
+  const update = (idx, field, val) => {
+    const newData = [...data];
+    newData[idx][field] = val;
+    onChange(newData);
+  };
+  const remove = (idx) => onChange(data.filter((_, i) => i !== idx));
+
+  return (
+    <div className="rb-field-group">
+      {data.map((lang, idx) => (
+        <div key={idx} className="rb-array-item" style={{ padding: "10px 16px" }}>
+          <button className="rb-array-remove" style={{ top: 20 }} onClick={() => remove(idx)}>Remove</button>
+          <div className="rb-row">
+            <div className="rb-field">
+              <label className="rb-label">Language</label>
+              <input className="rb-input" placeholder="English" value={lang.language} onChange={e => update(idx, "language", e.target.value)} />
+            </div>
+            <div className="rb-field" style={{ paddingRight: 70 }}>
+              <label className="rb-label">Proficiency</label>
+              <input className="rb-input" placeholder="Native / Fluent" value={lang.proficiency} onChange={e => update(idx, "proficiency", e.target.value)} />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button className="rb-add-btn" onClick={add}>+ Add Another Language</button>
     </div>
   );
 }
@@ -405,16 +453,8 @@ function StepSkills({ skills, onChange }) {
     }
   };
   
-  const remove = (s) => {
-    onChange(skills.filter((x) => x !== s));
-  };
-  
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      add();
-    }
-  };
+  const remove = (s) => onChange(skills.filter((x) => x !== s));
+  const handleKeyDown = (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } };
   
   return (
     <div className="rb-field-group">
@@ -422,21 +462,12 @@ function StepSkills({ skills, onChange }) {
         <label className="rb-label">Added Skills ({skills.length})</label>
         <div className="rb-skills-wrap">
           {skills.length === 0 && (
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
-              No skills added yet. Add your first skill below!
-            </span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>No skills added yet.</span>
           )}
           {skills.map((s, idx) => (
             <span key={`${s}-${idx}`} className="rb-skill-tag">
               {s}
-              <button 
-                type="button"
-                className="rb-skill-remove" 
-                onClick={() => remove(s)}
-                aria-label={`Remove ${s}`}
-              >
-                ×
-              </button>
+              <button type="button" className="rb-skill-remove" onClick={() => remove(s)}>×</button>
             </span>
           ))}
         </div>
@@ -444,27 +475,9 @@ function StepSkills({ skills, onChange }) {
       <div className="rb-field">
         <label className="rb-label">Add a Skill</label>
         <div className="rb-skill-input-row">
-          <input
-            type="text"
-            className="rb-input"
-            placeholder="e.g. React, Figma, Python…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            autoFocus
-          />
-          <button 
-            type="button"
-            className="rb-skill-add-btn" 
-            onClick={add}
-            disabled={!input.trim()}
-          >
-            + Add
-          </button>
+          <input type="text" className="rb-input" placeholder="e.g. React, Figma, Python…" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} />
+          <button type="button" className="rb-skill-add-btn" onClick={add} disabled={!input.trim()}>+ Add</button>
         </div>
-        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 4 }}>
-          Press Enter or click Add button
-        </span>
       </div>
     </div>
   );
@@ -491,8 +504,8 @@ function StepSummary({ value, onChange }) {
 function StepFinalize({ data }) {
   const checks = [
     { label: "Contact info filled", ok: !!(data.contacts.firstName && data.contacts.email) },
-    { label: "Work experience added", ok: !!(data.experience.company || data.experience.role) },
-    { label: "Education added", ok: !!(data.education.college || data.education.degree) },
+    { label: "Work experience added", ok: data.experience.length > 0 && !!data.experience[0].company },
+    { label: "Education added", ok: data.education.length > 0 && !!data.education[0].college },
     { label: "Skills listed", ok: data.skills.length > 0 },
     { label: "Summary written", ok: data.summary.length > 30 },
   ];
@@ -500,8 +513,8 @@ function StepFinalize({ data }) {
   return (
     <div className="rb-finalize">
       <div className="rb-finalize-icon">{score === 5 ? "🎉" : "📝"}</div>
-      <div className="rb-finalize-title">{score === 5 ? "Resume is complete!" : `${score} of 5 sections done`}</div>
-      <div className="rb-finalize-sub">{score === 5 ? "Your resume looks great. Ready to download." : "Go back to fill in missing sections for a stronger resume."}</div>
+      <div className="rb-finalize-title">{score === 5 ? "Resume is complete!" : `${score} of 5 core sections done`}</div>
+      <div className="rb-finalize-sub">{score === 5 ? "Your resume looks great. Ready to optimize." : "Go back to fill in missing core sections for a stronger resume."}</div>
       <div className="rb-checklist">
         {checks.map((c) => (
           <div key={c.label} className="rb-check-item">
@@ -514,15 +527,18 @@ function StepFinalize({ data }) {
   );
 }
 
-export default function ResumeBuilder({ onContinue, onBack, templateId }) {
+export default function ResumeBuilder({ onContinue, onBack, templateId, selectedTemplate }) {
   const [step, setStep] = useState(0);
   const [contacts, setContacts] = useState({ firstName: "", lastName: "", jobTitle: "", phone: "", email: "" });
-  const [experience, setExperience] = useState({ company: "", role: "", duration: "", description: "" });
-  const [education, setEducation] = useState({ college: "", degree: "", year: "" });
+  const [experience, setExperience] = useState([{ company: "", role: "", duration: "", description: "" }]);
+  const [education, setEducation] = useState([{ college: "", degree: "", year: "" }]);
+  const [projects, setProjects] = useState([]);
+  const [certifications, setCertifications] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [skills, setSkills] = useState([]);
   const [summary, setSummary] = useState("");
 
-  const allData = { contacts, experience, education, skills, summary };
+  const allData = { contacts, experience, education, projects, certifications, languages, skills, summary };
 
   return (
     <>
@@ -535,40 +551,38 @@ export default function ResumeBuilder({ onContinue, onBack, templateId }) {
                 <div key={i} className={`rb-dot${i === step ? " active" : i < step ? " done" : ""}`} />
               ))}
             </div>
-            <span className="rb-step-label">Step {step + 1} of 6 · {STEPS[step]}</span>
+            <span className="rb-step-label">Step {step + 1} of {STEPS.length} · {STEPS[step]}</span>
           </div>
 
           <h1 className="rb-heading">{STEP_META[step].title}</h1>
           <p className="rb-subtitle">{STEP_META[step].subtitle}</p>
 
           <div className="rb-body">
-            <div className="rb-form-col">
+            <div className="rb-form-col" style={{maxHeight: '600px', overflowY: 'auto', paddingRight: '10px'}}>
               {step === 0 && <StepContacts data={contacts} onChange={setContacts} />}
               {step === 1 && <StepExperience data={experience} onChange={setExperience} />}
               {step === 2 && <StepEducation data={education} onChange={setEducation} />}
-              {step === 3 && <StepSkills skills={skills} onChange={setSkills} />}
-              {step === 4 && <StepSummary value={summary} onChange={setSummary} />}
-              {step === 5 && <StepFinalize data={allData} />}
+              {step === 3 && <StepProjects data={projects} onChange={setProjects} />}
+              {step === 4 && <StepCertifications data={certifications} onChange={setCertifications} />}
+              {step === 5 && <StepLanguages data={languages} onChange={setLanguages} />}
+              {step === 6 && <StepSkills skills={skills} onChange={setSkills} />}
+              {step === 7 && <StepSummary value={summary} onChange={setSummary} />}
+              {step === 8 && <StepFinalize data={allData} />}
 
               <div className="rb-nav">
                 {step > 0 ? <button className="rb-btn-back" onClick={() => setStep((s) => s - 1)}>← Back</button> : onBack ? <button className="rb-btn-back" onClick={onBack}>← Back</button> : null}
-                {step < 5 && <button className="rb-btn" onClick={() => setStep((s) => s + 1)}>Next: {STEPS[step + 1]} →</button>}
-                {step === 5 && (
-                  <>
-                    <button className="rb-btn" style={{background:'rgba(255,255,255,0.1)',marginRight:8}} onClick={() => { const link=document.createElement('a');link.download='resume.txt';link.href='data:text/plain,Resume';link.click(); }}>
-                      ↓ Download
-                    </button>
-                    <button className="rb-btn" onClick={() => { if(onContinue) onContinue(allData); }}>
-                      Next: Add Job Description →
-                    </button>
-                  </>
+                {step < STEPS.length - 1 && <button className="rb-btn" onClick={() => setStep((s) => s + 1)}>Next: {STEPS[step + 1]} →</button>}
+                {step === STEPS.length - 1 && (
+                  <button className="rb-btn" onClick={() => { if(onContinue) onContinue(allData); }}>
+                    Next: Add Job Description to Optimize →
+                  </button>
                 )}
               </div>
             </div>
 
-            <div className="rb-preview-col">
+            <div className="rb-preview-col" style={{position: 'sticky', top: 0}}>
               <div className="rb-preview-label">Live Preview</div>
-              <LivePreview data={allData} />
+              <LivePreview data={allData} selectedTemplate={selectedTemplate} />
             </div>
           </div>
         </div>

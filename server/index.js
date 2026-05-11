@@ -5,6 +5,10 @@ require("dotenv").config();
 
 const app = express();
 
+// Webhook route needs to be before express.json() because it needs the raw body
+const webhookRoutes = require("./routes/webhookRoutes");
+app.use("/api/webhook", webhookRoutes);
+
 // Middleware
 app.use(cors());
 app.use(express.json());

@@ -111,7 +111,7 @@ export default function App() {
   if (page === "template-select") {
     return (
       <TemplateSelectionPage
-        onContinue={(templateId) => go("resume-builder", { templateId })}
+        onContinue={(template) => go("resume-builder", { templateId: template.id, selectedTemplate: template })}
         onBack={() => go("method-select")}
       />
     );
@@ -121,6 +121,7 @@ export default function App() {
     return (
       <ResumeBuilder
         templateId={appData.templateId}
+        selectedTemplate={appData.selectedTemplate}
         onContinue={(resumeData) => go("job-description", { resumeData })}
         onBack={() => go("template-select")}
         onDownload={(resumeData) => {

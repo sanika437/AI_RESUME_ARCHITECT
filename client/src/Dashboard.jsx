@@ -211,6 +211,16 @@ export default function Dashboard({ onNavigate, appData }) {
                   <div className="db-pro-feature">Premium Resume Templates</div>
                 </div>
                 <button className="db-btn-upgrade" onClick={handleCheckout}>Upgrade to Pro</button>
+                <button 
+                  onClick={async () => {
+                    const token = localStorage.getItem("token");
+                    const res = await fetch("http://localhost:5000/api/user/dev-upgrade", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+                    if (res.ok) window.location.reload();
+                  }}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', padding: '8px', color: '#fff', fontSize: '11px', marginTop: '10px', width: '100%', borderRadius: '8px', cursor: 'pointer' }}
+                >
+                  [Dev] Simulate Payment Success
+                </button>
               </div>
             )}
           </div>
