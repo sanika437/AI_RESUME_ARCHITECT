@@ -19,10 +19,12 @@ mongoose
 const aiRoutes = require("./routes/aiRoutes");
 const pdfRoutes = require("./routes/pdfRoutes");
 const authRoutes = require("./routes/authRoutes"); // NEW
+const userRoutes = require("./routes/userRoutes"); // NEW
 
 app.use("/api/ai", aiRoutes);
 app.use("/api/pdf", pdfRoutes);
 app.use("/api/auth", authRoutes); // NEW
+app.use("/api/user", userRoutes); // NEW
 
 // Health check
 app.get("/", (req, res) => {
